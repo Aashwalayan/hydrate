@@ -51,13 +51,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     ).showSnackBar(SnackBar(content: Text(response.message)));
 
     if (response.success) {
-      Navigator.of(context).push(
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute<void>(
-          builder: (_) => ResetPasswordScreen(
-            authService: widget.authService,
-            email: _emailController.text.trim(),
-          ),
+          builder: (_) => LoginScreen(authService: widget.authService),
         ),
+        (route) => false,
       );
     }
   }

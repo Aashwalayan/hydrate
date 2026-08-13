@@ -1,21 +1,56 @@
-import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class AuthResponse {
-  const AuthResponse({required this.success, required this.message});
+  const AuthResponse({
+    required this.success,
+    required this.message,
+    this.token,
+  });
 
   final bool success;
   final String message;
+  final String? token;
 }
 
 class AuthService {
+  // Android emulator → your computer's localhost
+  static const String baseUrl = 'http://10.0.2.2:4000/api/auth';
+
   Future<AuthResponse> login({
     required String email,
     required String password,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 900));
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'password': password,
+        }),
+      );
 
-    // TODO: Replace with POST /auth/login when backend is ready.
-    return const AuthResponse(success: true, message: 'Login successful.');
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return AuthResponse(
+          success: true,
+          message: data['message'] ?? 'Login successful.',
+          token: data['token'],
+        );
+      }
+
+      return AuthResponse(
+        success: false,
+        message: data['message'] ?? 'Login failed.',
+      );
+    } catch (e) {
+      return const AuthResponse(
+        success: false,
+        message: 'Unable to connect to the server.',
+      );
+    }
   }
 
   Future<AuthResponse> signup({
@@ -23,53 +58,56 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 1100));
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/signup'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'name': name,
+          'email': email,
+          'password': password,
+        }),
+      );
 
-    // TODO: Replace with POST /auth/signup when backend is ready.
-    return const AuthResponse(
-      success: true,
-      message: 'Account created. Verify your email to continue.',
-    );
+      final data = jsonDecode(response.body);
+
+      return AuthResponse(
+        success: response.statusCode == 201,
+        message: data['message'] ?? 'Signup failed.',
+      );
+    } catch (e) {
+      return const AuthResponse(
+        success: false,
+        message: 'Unable to connect to the server.',
+      );
+    }
   }
 
   Future<AuthResponse> verifyEmail({
     required String email,
     required String otp,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 900));
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/verify-email'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'otp': otp,
+        }),
+      );
 
-    // TODO: Replace with POST /auth/verify-email when backend is ready.
-    return const AuthResponse(success: true, message: 'Email verified.');
-  }
+      final data = jsonDecode(response.body);
 
-  Future<AuthResponse> resendVerificationCode({required String email}) async {
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-
-    // TODO: Replace with POST /auth/resend-verification-code later.
-    return const AuthResponse(
-      success: true,
-      message: 'A new verification code has been sent.',
-    );
-  }
-
-  Future<AuthResponse> forgotPassword({required String email}) async {
-    await Future<void>.delayed(const Duration(milliseconds: 850));
-
-    // TODO: Replace with POST /auth/forgot-password when backend is ready.
-    return const AuthResponse(success: true, message: 'Reset code sent.');
-  }
-
-  Future<AuthResponse> resetPassword({
-    required String email,
-    required String code,
-    required String newPassword,
-  }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 950));
-
-    // TODO: Replace with POST /auth/reset-password when backend is ready.
-    return const AuthResponse(
-      success: true,
-      message: 'Password reset successful.',
-    );
+      return AuthResponse(
+        success: response.statusCode == 200,
+        message: data['message'] ?? 'Verification failed.',
+      );
+    } catch (e) {
+      return const AuthResponse(
+        success: false,
+        message: 'Unable to connect to the server.',
+      );
+    }
   }
 }
