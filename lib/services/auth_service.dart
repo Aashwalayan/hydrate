@@ -25,10 +25,7 @@ class AuthService {
       final response = await http.post(
         Uri.parse('$baseUrl/login'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'password': password,
-        }),
+        body: jsonEncode({'email': email, 'password': password}),
       );
 
       final data = jsonDecode(response.body);
@@ -62,11 +59,7 @@ class AuthService {
       final response = await http.post(
         Uri.parse('$baseUrl/signup'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'name': name,
-          'email': email,
-          'password': password,
-        }),
+        body: jsonEncode({'name': name, 'email': email, 'password': password}),
       );
 
       final data = jsonDecode(response.body);
@@ -91,10 +84,7 @@ class AuthService {
       final response = await http.post(
         Uri.parse('$baseUrl/verify-email'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'otp': otp,
-        }),
+        body: jsonEncode({'email': email, 'otp': otp}),
       );
 
       final data = jsonDecode(response.body);
@@ -102,6 +92,80 @@ class AuthService {
       return AuthResponse(
         success: response.statusCode == 200,
         message: data['message'] ?? 'Verification failed.',
+      );
+    } catch (e) {
+      return const AuthResponse(
+        success: false,
+        message: 'Unable to connect to the server.',
+      );
+    }
+  }
+
+  Future<AuthResponse> resendVerificationCode({required String email}) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/resend-verification'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      );
+
+      final data = jsonDecode(response.body);
+
+      return AuthResponse(
+        success: response.statusCode == 200,
+        message: data['message'] ?? 'Failed to resend verification code.',
+      );
+    } catch (e) {
+      return const AuthResponse(
+        success: false,
+        message: 'Unable to connect to the server.',
+      );
+    }
+  }
+
+  Future<AuthResponse> forgotPassword({required String email}) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/forgot-password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      );
+
+      final data = jsonDecode(response.body);
+
+      return AuthResponse(
+        success: response.statusCode == 200,
+        message: data['message'] ?? 'Failed to send reset code.',
+      );
+    } catch (e) {
+      return const AuthResponse(
+        success: false,
+        message: 'Unable to connect to the server.',
+      );
+    }
+  }
+
+  Future<AuthResponse> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/reset-password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'code': code,
+          'newPassword': newPassword,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+
+      return AuthResponse(
+        success: response.statusCode == 200,
+        message: data['message'] ?? 'Failed to reset password.',
       );
     } catch (e) {
       return const AuthResponse(

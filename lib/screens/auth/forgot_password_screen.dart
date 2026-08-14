@@ -5,6 +5,7 @@ import '../../widgets/auth_scaffold.dart';
 import '../../widgets/auth_text_field.dart';
 import '../../widgets/primary_button.dart';
 import 'reset_password_screen.dart';
+import 'login_screen.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key, required this.authService});
