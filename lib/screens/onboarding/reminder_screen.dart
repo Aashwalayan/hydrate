@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'personalization_screen.dart';
 
 class ReminderScreen extends StatefulWidget {
   const ReminderScreen({
@@ -19,7 +20,8 @@ class ReminderScreen extends StatefulWidget {
     Duration interval,
     TimeOfDay startTime,
     TimeOfDay endTime,
-  )? onContinue;
+  )?
+  onContinue;
 
   @override
   State<ReminderScreen> createState() => _ReminderScreenState();
@@ -31,12 +33,6 @@ class _ReminderScreenState extends State<ReminderScreen> {
   late TimeOfDay _startTime;
   late TimeOfDay _endTime;
 
-  static const Color _lightPrimary = Color(0xFF4FC3E8);
-  static const Color _lightSecondary = Color(0xFF7FD8C7);
-
-  static const Color _darkPrimary = Color(0xFF5FD3F3);
-  static const Color _darkSecondary = Color(0xFF6FE0C9);
-
   @override
   void initState() {
     super.initState();
@@ -44,25 +40,9 @@ class _ReminderScreenState extends State<ReminderScreen> {
     _remindersEnabled = widget.initialEnabled;
     _interval = widget.initialInterval;
 
-    _startTime = widget.initialStartTime ??
-        const TimeOfDay(
-          hour: 8,
-          minute: 0,
-        );
+    _startTime = widget.initialStartTime ?? const TimeOfDay(hour: 8, minute: 0);
 
-    _endTime = widget.initialEndTime ??
-        const TimeOfDay(
-          hour: 22,
-          minute: 0,
-        );
-  }
-
-  Color _primary(bool isDark) {
-    return isDark ? _darkPrimary : _lightPrimary;
-  }
-
-  Color _secondary(bool isDark) {
-    return isDark ? _darkSecondary : _lightSecondary;
+    _endTime = widget.initialEndTime ?? const TimeOfDay(hour: 22, minute: 0);
   }
 
   String _formatTime(TimeOfDay time) {
@@ -87,9 +67,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
     return '$hours hours';
   }
 
-  Future<void> _selectTime({
-    required bool start,
-  }) async {
+  Future<void> _selectTime({required bool start}) async {
     final selected = await showTimePicker(
       context: context,
       initialTime: start ? _startTime : _endTime,
@@ -99,9 +77,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
 
         return Theme(
           data: theme.copyWith(
-            colorScheme: theme.colorScheme.copyWith(
-              primary: _primary(isDark),
-            ),
+            colorScheme: theme.colorScheme.copyWith(primary: theme.colorScheme.primary,),
           ),
           child: child!,
         );
@@ -120,25 +96,30 @@ class _ReminderScreenState extends State<ReminderScreen> {
   }
 
   void _continue() {
-    widget.onContinue?.call(
-      _remindersEnabled,
-      _interval,
-      _startTime,
-      _endTime,
-    );
-  }
+  widget.onContinue?.call(
+    _remindersEnabled,
+    _interval,
+    _startTime,
+    _endTime,
+  );
+
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => const PersonalizationScreen(),
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     final isDark = theme.brightness == Brightness.dark;
 
-    final primary = _primary(isDark);
-    final secondary = _secondary(isDark);
-
-    final surface = isDark
-        ? const Color(0xFF101820)
-        : const Color(0xFFF5FAFB);
+    final primary = colorScheme.primary;
+    final secondary = colorScheme.secondary;
+    final surface = colorScheme.surface;
 
     return Scaffold(
       backgroundColor: surface,
@@ -152,36 +133,22 @@ class _ReminderScreenState extends State<ReminderScreen> {
             ),
             SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(
-                24,
-                16,
-                24,
-                28,
-              ),
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
               child: Column(
                 children: [
                   _buildTopBar(context, primary),
 
                   const SizedBox(height: 18),
 
-                  _buildProgressIndicator(
-                    context,
-                    primary,
-                  ),
+                  _buildProgressIndicator(context, primary),
 
                   const SizedBox(height: 28),
 
-                  _buildHeader(
-                    context,
-                    primary,
-                  ),
+                  _buildHeader(context, primary),
 
                   const SizedBox(height: 28),
 
-                  _buildEnableCard(
-                    context,
-                    primary,
-                  ),
+                  _buildEnableCard(context, primary),
 
                   const SizedBox(height: 20),
 
@@ -192,18 +159,11 @@ class _ReminderScreenState extends State<ReminderScreen> {
                       ignoring: !_remindersEnabled,
                       child: Column(
                         children: [
-                          _buildFrequencyCard(
-                            context,
-                            primary,
-                          ),
+                          _buildFrequencyCard(context, primary),
 
                           const SizedBox(height: 16),
 
-                          _buildTimeCard(
-                            context,
-                            primary,
-                            secondary,
-                          ),
+                          _buildTimeCard(context, primary, secondary),
                         ],
                       ),
                     ),
@@ -211,19 +171,11 @@ class _ReminderScreenState extends State<ReminderScreen> {
 
                   const SizedBox(height: 22),
 
-                  _buildSchedulePreview(
-                    context,
-                    primary,
-                    secondary,
-                  ),
+                  _buildSchedulePreview(context, primary, secondary),
 
                   const SizedBox(height: 28),
 
-                  _buildContinueButton(
-                    context,
-                    primary,
-                    secondary,
-                  ),
+                  _buildContinueButton(context, primary, secondary),
                 ],
               ),
             ),
@@ -233,10 +185,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
     );
   }
 
-  Widget _buildTopBar(
-    BuildContext context,
-    Color primary,
-  ) {
+  Widget _buildTopBar(BuildContext context, Color primary) {
     return Align(
       alignment: Alignment.centerLeft,
       child: Material(
@@ -250,61 +199,24 @@ class _ReminderScreenState extends State<ReminderScreen> {
           child: const SizedBox(
             width: 48,
             height: 48,
-            child: Icon(
-              Icons.arrow_back_rounded,
-            ),
+            child: Icon(Icons.arrow_back_rounded),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildProgressIndicator(
-    BuildContext context,
-    Color primary,
-  ) {
+  Widget _buildProgressIndicator(BuildContext context, Color primary) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _progressCircle(
-          context,
-          '1',
-          false,
-          primary,
-        ),
-        _progressLine(
-          context,
-          primary,
-          true,
-        ),
-        _progressCircle(
-          context,
-          '2',
-          false,
-          primary,
-        ),
-        _progressLine(
-          context,
-          primary,
-          true,
-        ),
-        _progressCircle(
-          context,
-          '3',
-          true,
-          primary,
-        ),
-        _progressLine(
-          context,
-          primary,
-          false,
-        ),
-        _progressCircle(
-          context,
-          '4',
-          false,
-          primary,
-        ),
+        _progressCircle(context, '1', false, primary),
+        _progressLine(context, primary, true),
+        _progressCircle(context, '2', false, primary),
+        _progressLine(context, primary, true),
+        _progressCircle(context, '3', true, primary),
+        _progressLine(context, primary, false),
+        _progressCircle(context, '4', false, primary),
       ],
     );
   }
@@ -323,13 +235,9 @@ class _ReminderScreenState extends State<ReminderScreen> {
       height: 38,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: active
-            ? primary
-            : colorScheme.surface,
+        color: active ? primary : colorScheme.surface,
         border: Border.all(
-          color: active
-              ? primary
-              : colorScheme.outlineVariant,
+          color: active ? primary : colorScheme.outlineVariant,
           width: 2,
         ),
         boxShadow: active
@@ -346,34 +254,23 @@ class _ReminderScreenState extends State<ReminderScreen> {
         number,
         style: TextStyle(
           fontWeight: FontWeight.w700,
-          color: active
-              ? Colors.white
-              : colorScheme.onSurfaceVariant,
+          color: active ? Colors.white : colorScheme.onSurfaceVariant,
         ),
       ),
     );
   }
 
-  Widget _progressLine(
-    BuildContext context,
-    Color primary,
-    bool active,
-  ) {
+  Widget _progressLine(BuildContext context, Color primary, bool active) {
     return Container(
       width: 32,
       height: 2,
       color: active
           ? primary.withValues(alpha: 0.55)
-          : Theme.of(context)
-              .colorScheme
-              .outlineVariant,
+          : Theme.of(context).colorScheme.outlineVariant,
     );
   }
 
-  Widget _buildHeader(
-    BuildContext context,
-    Color primary,
-  ) {
+  Widget _buildHeader(BuildContext context, Color primary) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Column(
@@ -421,17 +318,11 @@ class _ReminderScreenState extends State<ReminderScreen> {
     );
   }
 
-  Widget _buildEnableCard(
-    BuildContext context,
-    Color primary,
-  ) {
+  Widget _buildEnableCard(BuildContext context, Color primary) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 18,
-        vertical: 16,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
@@ -507,10 +398,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
     );
   }
 
-  Widget _buildFrequencyCard(
-    BuildContext context,
-    Color primary,
-  ) {
+  Widget _buildFrequencyCard(BuildContext context, Color primary) {
     final colorScheme = Theme.of(context).colorScheme;
 
     const intervals = [
@@ -552,12 +440,8 @@ class _ReminderScreenState extends State<ReminderScreen> {
                       });
                     },
                     child: AnimatedContainer(
-                      duration: const Duration(
-                        milliseconds: 180,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 12,
-                      ),
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       decoration: BoxDecoration(
                         color: selected
                             ? primary.withValues(alpha: 0.11)
@@ -578,8 +462,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
                             fontWeight: FontWeight.w700,
                             color: selected
                                 ? primary
-                                : colorScheme
-                                    .onSurfaceVariant,
+                                : colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ),
@@ -594,11 +477,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
     );
   }
 
-  Widget _buildTimeCard(
-    BuildContext context,
-    Color primary,
-    Color secondary,
-  ) {
+  Widget _buildTimeCard(BuildContext context, Color primary, Color secondary) {
     return _sectionCard(
       context,
       child: Column(
@@ -609,9 +488,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
 
@@ -630,15 +507,11 @@ class _ReminderScreenState extends State<ReminderScreen> {
               ),
 
               Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Icon(
                   Icons.arrow_forward_rounded,
                   size: 18,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurfaceVariant,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
 
@@ -668,17 +541,13 @@ class _ReminderScreenState extends State<ReminderScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Material(
-      color: colorScheme.surfaceContainerHighest
-          .withValues(alpha: 0.55),
+      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 13,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
           child: Column(
             children: [
               Text(
@@ -693,11 +562,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.schedule_rounded,
-                    size: 17,
-                    color: primary,
-                  ),
+                  Icon(Icons.schedule_rounded, size: 17, color: primary),
                   const SizedBox(width: 6),
                   Text(
                     _formatTime(time),
@@ -729,22 +594,15 @@ class _ReminderScreenState extends State<ReminderScreen> {
       decoration: BoxDecoration(
         color: primary.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: primary.withValues(alpha: 0.12),
-        ),
+        border: Border.all(color: primary.withValues(alpha: 0.12)),
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.water_drop_rounded,
-            color: primary,
-            size: 28,
-          ),
+          Icon(Icons.water_drop_rounded, color: primary, size: 28),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   _remindersEnabled
@@ -760,8 +618,8 @@ class _ReminderScreenState extends State<ReminderScreen> {
                 Text(
                   _remindersEnabled
                       ? 'Every ${_formatInterval(_interval)} '
-                          'from ${_formatTime(_startTime)} '
-                          'to ${_formatTime(_endTime)}'
+                            'from ${_formatTime(_startTime)} '
+                            'to ${_formatTime(_endTime)}'
                       : 'You can turn them on anytime in Settings.',
                   style: TextStyle(
                     fontSize: 12,
@@ -777,10 +635,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
     );
   }
 
-  Widget _sectionCard(
-    BuildContext context, {
-    required Widget child,
-  }) {
+  Widget _sectionCard(BuildContext context, {required Widget child}) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
@@ -790,12 +645,11 @@ class _ReminderScreenState extends State<ReminderScreen> {
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: colorScheme.outlineVariant
-              .withValues(alpha: 0.7),
+          color: colorScheme.outlineVariant.withValues(alpha: 0.7),
         ),
         boxShadow: [
           BoxShadow(
-            color: _lightPrimary.withValues(alpha: 0.07),
+            color: colorScheme.primary.withValues(alpha: 0.07),
             blurRadius: 16,
             offset: const Offset(0, 5),
           ),
@@ -815,12 +669,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
       height: 58,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              primary,
-              secondary,
-            ],
-          ),
+          gradient: LinearGradient(colors: [primary, secondary]),
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
@@ -846,16 +695,10 @@ class _ReminderScreenState extends State<ReminderScreen> {
             children: [
               Text(
                 'Continue',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
               ),
               SizedBox(width: 10),
-              Icon(
-                Icons.arrow_forward_rounded,
-                size: 22,
-              ),
+              Icon(Icons.arrow_forward_rounded, size: 22),
             ],
           ),
         ),
@@ -877,9 +720,7 @@ class _ReminderBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final surface = isDark
-        ? const Color(0xFF101820)
-        : const Color(0xFFF5FAFB);
+    final surface = Theme.of(context).colorScheme.surface;
 
     return Positioned.fill(
       child: IgnorePointer(
@@ -889,13 +730,9 @@ class _ReminderBackground extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                primary.withValues(
-                  alpha: isDark ? 0.20 : 0.12,
-                ),
+                primary.withValues(alpha: isDark ? 0.20 : 0.12),
                 surface,
-                secondary.withValues(
-                  alpha: isDark ? 0.16 : 0.09,
-                ),
+                secondary.withValues(alpha: isDark ? 0.16 : 0.09),
               ],
             ),
           ),

@@ -8,6 +8,7 @@ import 'screens/onboarding/personalization_screen.dart';
 import 'services/auth_service.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_controller.dart';
+import 'theme/theme_provider.dart';
 
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>();
@@ -36,9 +37,11 @@ class _HydrateAppState extends State<HydrateApp> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: _themeController,
-      builder: (context, child) {
-        return MaterialApp(
+  listenable: _themeController,
+  builder: (context, child) {
+    return ThemeControllerProvider(
+      controller: _themeController,
+      child: MaterialApp(
           title: 'Hydrate',
           debugShowCheckedModeBanner: false,
 
@@ -65,6 +68,7 @@ class _HydrateAppState extends State<HydrateApp> {
               );
             },
           ),
+      )
         );
       },
     );

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/hydrate_theme.dart';
+import '../../theme/theme_controller.dart';
+import '../../theme/theme_provider.dart';
 
 class PersonalizationScreen extends StatefulWidget {
   const PersonalizationScreen({
@@ -11,26 +13,19 @@ class PersonalizationScreen extends StatefulWidget {
 
   final ThemeMode initialThemeMode;
   final HydrateTheme initialTheme;
-  final void Function(
-    ThemeMode themeMode,
-    HydrateTheme theme,
-  )? onFinish;
+  final void Function(ThemeMode themeMode, HydrateTheme theme)? onFinish;
 
   @override
-  State<PersonalizationScreen> createState() =>
-      _PersonalizationScreenState();
+  State<PersonalizationScreen> createState() => _PersonalizationScreenState();
 }
 
-class _PersonalizationScreenState
-    extends State<PersonalizationScreen> {
+class _PersonalizationScreenState extends State<PersonalizationScreen> {
+  ThemeController get _themeController => ThemeControllerProvider.of(context);
+
+  HydrateThemeData get _selectedThemeData => HydrateThemes.get(_theme);
+
   late ThemeMode _themeMode;
   late HydrateTheme _theme;
-
-  static const Color _lightPrimary = Color(0xFF4FC3E8);
-  static const Color _lightSecondary = Color(0xFF7FD8C7);
-
-  static const Color _darkPrimary = Color(0xFF5FD3F3);
-  static const Color _darkSecondary = Color(0xFF6FE0C9);
 
   @override
   void initState() {
@@ -40,19 +35,10 @@ class _PersonalizationScreenState
     _theme = widget.initialTheme;
   }
 
-  Color _primary(bool isDark) {
-    return isDark ? _darkPrimary : _lightPrimary;
-  }
-
-  Color _secondary(bool isDark) {
-    return isDark ? _darkSecondary : _lightSecondary;
-  }
-
   void _finish() {
-    widget.onFinish?.call(
-      _themeMode,
-      _theme,
-    );
+    _themeController.setSettings(themeMode: _themeMode, hydrateTheme: _theme);
+
+    widget.onFinish?.call(_themeMode, _theme);
   }
 
   @override
@@ -60,12 +46,13 @@ class _PersonalizationScreenState
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final primary = _primary(isDark);
-    final secondary = _secondary(isDark);
+    final themeData = _selectedThemeData;
 
-    final surface = isDark
-        ? const Color(0xFF101820)
-        : const Color(0xFFF5FAFB);
+    final primary = isDark ? themeData.darkPrimary : themeData.primary;
+
+    final secondary = isDark ? themeData.darkSecondary : themeData.secondary;
+
+    final surface = theme.colorScheme.surface;
 
     return Scaffold(
       backgroundColor: surface,
@@ -79,60 +66,34 @@ class _PersonalizationScreenState
             ),
             SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(
-                24,
-                16,
-                24,
-                28,
-              ),
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
               child: Column(
                 children: [
                   _buildTopBar(context, primary),
 
                   const SizedBox(height: 18),
 
-                  _buildProgressIndicator(
-                    context,
-                    primary,
-                  ),
+                  _buildProgressIndicator(context, primary),
 
                   const SizedBox(height: 30),
 
-                  _buildHeader(
-                    context,
-                    primary,
-                  ),
+                  _buildHeader(context, primary),
 
                   const SizedBox(height: 30),
 
-                  _buildAppearanceSection(
-                    context,
-                    primary,
-                  ),
+                  _buildAppearanceSection(context, primary),
 
                   const SizedBox(height: 24),
 
-                  _buildThemeSection(
-                    context,
-                    primary,
-                    secondary,
-                  ),
+                  _buildThemeSection(context, primary, secondary),
 
                   const SizedBox(height: 28),
 
-                  _buildPreview(
-                    context,
-                    primary,
-                    secondary,
-                  ),
+                  _buildPreview(context, primary, secondary),
 
                   const SizedBox(height: 30),
 
-                  _buildFinishButton(
-                    context,
-                    primary,
-                    secondary,
-                  ),
+                  _buildFinishButton(context, primary, secondary),
                 ],
               ),
             ),
@@ -142,10 +103,7 @@ class _PersonalizationScreenState
     );
   }
 
-  Widget _buildTopBar(
-    BuildContext context,
-    Color primary,
-  ) {
+  Widget _buildTopBar(BuildContext context, Color primary) {
     return Align(
       alignment: Alignment.centerLeft,
       child: Material(
@@ -159,49 +117,24 @@ class _PersonalizationScreenState
           child: const SizedBox(
             width: 48,
             height: 48,
-            child: Icon(
-              Icons.arrow_back_rounded,
-            ),
+            child: Icon(Icons.arrow_back_rounded),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildProgressIndicator(
-    BuildContext context,
-    Color primary,
-  ) {
+  Widget _buildProgressIndicator(BuildContext context, Color primary) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _progressCircle(
-          context,
-          '1',
-          false,
-          primary,
-        ),
+        _progressCircle(context, '1', false, primary),
         _progressLine(context, primary),
-        _progressCircle(
-          context,
-          '2',
-          false,
-          primary,
-        ),
+        _progressCircle(context, '2', false, primary),
         _progressLine(context, primary),
-        _progressCircle(
-          context,
-          '3',
-          false,
-          primary,
-        ),
+        _progressCircle(context, '3', false, primary),
         _progressLine(context, primary),
-        _progressCircle(
-          context,
-          '4',
-          true,
-          primary,
-        ),
+        _progressCircle(context, '4', true, primary),
       ],
     );
   }
@@ -220,13 +153,9 @@ class _PersonalizationScreenState
       height: 38,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: active
-            ? primary
-            : colorScheme.surface,
+        color: active ? primary : colorScheme.surface,
         border: Border.all(
-          color: active
-              ? primary
-              : colorScheme.outlineVariant,
+          color: active ? primary : colorScheme.outlineVariant,
           width: 2,
         ),
         boxShadow: active
@@ -243,18 +172,13 @@ class _PersonalizationScreenState
         number,
         style: TextStyle(
           fontWeight: FontWeight.w700,
-          color: active
-              ? Colors.white
-              : colorScheme.onSurfaceVariant,
+          color: active ? Colors.white : colorScheme.onSurfaceVariant,
         ),
       ),
     );
   }
 
-  Widget _progressLine(
-    BuildContext context,
-    Color primary,
-  ) {
+  Widget _progressLine(BuildContext context, Color primary) {
     return Container(
       width: 32,
       height: 2,
@@ -262,10 +186,7 @@ class _PersonalizationScreenState
     );
   }
 
-  Widget _buildHeader(
-    BuildContext context,
-    Color primary,
-  ) {
+  Widget _buildHeader(BuildContext context, Color primary) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Column(
@@ -278,16 +199,11 @@ class _PersonalizationScreenState
             gradient: LinearGradient(
               colors: [
                 primary.withValues(alpha: 0.18),
-                const Color(0xFFA78BFA)
-                    .withValues(alpha: 0.14),
+                const Color(0xFFA78BFA).withValues(alpha: 0.14),
               ],
             ),
           ),
-          child: Icon(
-            Icons.auto_awesome_rounded,
-            size: 38,
-            color: primary,
-          ),
+          child: Icon(Icons.auto_awesome_rounded, size: 38, color: primary),
         ),
 
         const SizedBox(height: 20),
@@ -319,10 +235,7 @@ class _PersonalizationScreenState
     );
   }
 
-  Widget _buildAppearanceSection(
-    BuildContext context,
-    Color primary,
-  ) {
+  Widget _buildAppearanceSection(BuildContext context, Color primary) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return _sectionCard(
@@ -343,10 +256,7 @@ class _PersonalizationScreenState
 
           Text(
             'You can change this anytime in Settings.',
-            style: TextStyle(
-              fontSize: 13,
-              color: colorScheme.onSurfaceVariant,
-            ),
+            style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
           ),
 
           const SizedBox(height: 16),
@@ -399,21 +309,19 @@ class _PersonalizationScreenState
           setState(() {
             _themeMode = mode;
           });
+
+          _themeController.setThemeMode(mode);
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(
-            vertical: 15,
-          ),
+          padding: const EdgeInsets.symmetric(vertical: 15),
           decoration: BoxDecoration(
             color: selected
                 ? primary.withValues(alpha: 0.10)
                 : colorScheme.surface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: selected
-                  ? primary
-                  : colorScheme.outlineVariant,
+              color: selected ? primary : colorScheme.outlineVariant,
               width: selected ? 1.5 : 1,
             ),
           ),
@@ -422,9 +330,7 @@ class _PersonalizationScreenState
               Icon(
                 icon,
                 size: 24,
-                color: selected
-                    ? primary
-                    : colorScheme.onSurfaceVariant,
+                color: selected ? primary : colorScheme.onSurfaceVariant,
               ),
               const SizedBox(height: 8),
               Text(
@@ -432,9 +338,7 @@ class _PersonalizationScreenState
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: selected
-                      ? primary
-                      : colorScheme.onSurfaceVariant,
+                  color: selected ? primary : colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -469,10 +373,7 @@ class _PersonalizationScreenState
 
           Text(
             'Pick a subtle accent for your app.',
-            style: TextStyle(
-              fontSize: 13,
-              color: colorScheme.onSurfaceVariant,
-            ),
+            style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
           ),
 
           const SizedBox(height: 18),
@@ -528,6 +429,9 @@ class _PersonalizationScreenState
         setState(() {
           _theme = theme;
         });
+
+        _themeController.setHydrateTheme(theme);
+        print('SELECTED THEME: ${_themeController.hydrateTheme}');
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
@@ -538,9 +442,7 @@ class _PersonalizationScreenState
               : colorScheme.surface,
           borderRadius: BorderRadius.circular(17),
           border: Border.all(
-            color: selected
-                ? primary
-                : colorScheme.outlineVariant,
+            color: selected ? primary : colorScheme.outlineVariant,
             width: selected ? 1.5 : 1,
           ),
         ),
@@ -554,24 +456,17 @@ class _PersonalizationScreenState
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    primary,
-                    secondary,
-                  ],
+                  colors: [primary, secondary],
                 ),
               ),
-              child: const Icon(
-                Icons.water_drop_rounded,
-                color: Colors.white,
-              ),
+              child: const Icon(Icons.water_drop_rounded, color: Colors.white),
             ),
 
             const SizedBox(width: 14),
 
             Expanded(
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
@@ -600,9 +495,7 @@ class _PersonalizationScreenState
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: selected
-                      ? primary
-                      : colorScheme.outline,
+                  color: selected ? primary : colorScheme.outline,
                   width: 2,
                 ),
               ),
@@ -625,11 +518,7 @@ class _PersonalizationScreenState
     );
   }
 
-  Widget _buildPreview(
-    BuildContext context,
-    Color primary,
-    Color secondary,
-  ) {
+  Widget _buildPreview(BuildContext context, Color primary, Color secondary) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
@@ -638,9 +527,7 @@ class _PersonalizationScreenState
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: primary.withValues(alpha: 0.12),
-        ),
+        border: Border.all(color: primary.withValues(alpha: 0.12)),
         boxShadow: [
           BoxShadow(
             color: primary.withValues(alpha: 0.08),
@@ -656,12 +543,7 @@ class _PersonalizationScreenState
             height: 52,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  primary,
-                  secondary,
-                ],
-              ),
+              gradient: LinearGradient(colors: [primary, secondary]),
             ),
             child: const Icon(
               Icons.water_drop_rounded,
@@ -674,8 +556,7 @@ class _PersonalizationScreenState
 
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Looking good.',
@@ -697,20 +578,13 @@ class _PersonalizationScreenState
             ),
           ),
 
-          Icon(
-            Icons.check_circle_rounded,
-            color: secondary,
-            size: 25,
-          ),
+          Icon(Icons.check_circle_rounded, color: secondary, size: 25),
         ],
       ),
     );
   }
 
-  Widget _sectionCard(
-    BuildContext context, {
-    required Widget child,
-  }) {
+  Widget _sectionCard(BuildContext context, {required Widget child}) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
@@ -720,12 +594,11 @@ class _PersonalizationScreenState
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: colorScheme.outlineVariant
-              .withValues(alpha: 0.7),
+          color: colorScheme.outlineVariant.withValues(alpha: 0.7),
         ),
         boxShadow: [
           BoxShadow(
-            color: _lightPrimary.withValues(alpha: 0.07),
+            color: colorScheme.primary.withValues(alpha: 0.07),
             blurRadius: 16,
             offset: const Offset(0, 5),
           ),
@@ -745,12 +618,7 @@ class _PersonalizationScreenState
       height: 58,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              primary,
-              secondary,
-            ],
-          ),
+          gradient: LinearGradient(colors: [primary, secondary]),
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
@@ -776,16 +644,10 @@ class _PersonalizationScreenState
             children: [
               Text(
                 'Finish setup',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
               ),
               SizedBox(width: 10),
-              Icon(
-                Icons.check_rounded,
-                size: 22,
-              ),
+              Icon(Icons.check_rounded, size: 22),
             ],
           ),
         ),
@@ -807,9 +669,7 @@ class _PersonalizationBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final surface = isDark
-        ? const Color(0xFF101820)
-        : const Color(0xFFF5FAFB);
+    final surface = isDark ? const Color(0xFF101820) : const Color(0xFFF5FAFB);
 
     return Positioned.fill(
       child: IgnorePointer(
@@ -819,13 +679,9 @@ class _PersonalizationBackground extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                primary.withValues(
-                  alpha: isDark ? 0.20 : 0.12,
-                ),
+                primary.withValues(alpha: isDark ? 0.20 : 0.12),
                 surface,
-                secondary.withValues(
-                  alpha: isDark ? 0.16 : 0.09,
-                ),
+                secondary.withValues(alpha: isDark ? 0.16 : 0.09),
               ],
             ),
           ),

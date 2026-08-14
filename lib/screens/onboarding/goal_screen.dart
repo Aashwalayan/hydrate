@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'reminder_screen.dart';
+
 class GoalScreen extends StatefulWidget {
-  const GoalScreen({
-    super.key,
-    this.initialGoal = 2500,
-    this.onContinue,
-  });
+  const GoalScreen({super.key, this.initialGoal = 2500, this.onContinue});
 
   final int initialGoal;
   final ValueChanged<int>? onContinue;
@@ -21,6 +19,7 @@ class _GoalScreenState extends State<GoalScreen>
   static const int _step = 100;
 
   late int _goal;
+  double _dragValue = 0.0;
 
   late final AnimationController _waterAnimationController;
 
@@ -28,9 +27,7 @@ class _GoalScreenState extends State<GoalScreen>
   void initState() {
     super.initState();
 
-    _goal = _snapToStep(
-      widget.initialGoal.clamp(_minGoal, _maxGoal),
-    );
+    _goal = _snapToStep(widget.initialGoal.clamp(_minGoal, _maxGoal));
 
     _waterAnimationController = AnimationController(
       vsync: this,
@@ -48,8 +45,7 @@ class _GoalScreenState extends State<GoalScreen>
     return ((value - _minGoal) / _step).round() * _step + _minGoal;
   }
 
-  double get _progress =>
-      (_goal - _minGoal) / (_maxGoal - _minGoal);
+  double get _progress => (_goal - _minGoal) / (_maxGoal - _minGoal);
 
   String get _litres {
     final litres = _goal / 1000;
@@ -59,9 +55,7 @@ class _GoalScreenState extends State<GoalScreen>
   }
 
   void _setGoal(int value) {
-    final snapped = _snapToStep(
-      value.clamp(_minGoal, _maxGoal),
-    );
+    final snapped = _snapToStep(value.clamp(_minGoal, _maxGoal));
 
     if (snapped == _goal) return;
 
@@ -83,47 +77,27 @@ class _GoalScreenState extends State<GoalScreen>
 
     final isDark = theme.brightness == Brightness.dark;
 
-    final primary = isDark
-        ? const Color(0xFF5FD3F3)
-        : const Color(0xFF4FC3E8);
-
-    final secondary = isDark
-        ? const Color(0xFF6FE0C9)
-        : const Color(0xFF7FD8C7);
-
-    final surface = isDark
-        ? const Color(0xFF101820)
-        : const Color(0xFFF5FAFB);
+    final primary = colorScheme.primary;
+    final secondary = colorScheme.secondary;
+    final surface = colorScheme.surface;
 
     return Scaffold(
       backgroundColor: surface,
       body: SafeArea(
         child: Stack(
           children: [
-            _Background(
-              primary: primary,
-              secondary: secondary,
-              isDark: isDark,
-            ),
+            _Background(primary: primary, secondary: secondary, isDark: isDark),
 
             SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(
-                24,
-                16,
-                24,
-                28,
-              ),
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
               child: Column(
                 children: [
                   _buildTopBar(context, primary),
 
                   const SizedBox(height: 18),
 
-                  _buildProgressIndicator(
-                    context,
-                    primary,
-                  ),
+                  _buildProgressIndicator(context, primary),
 
                   const SizedBox(height: 28),
 
@@ -153,29 +127,18 @@ class _GoalScreenState extends State<GoalScreen>
 
                   const SizedBox(height: 24),
 
-                  _buildGoalDisplay(
-                    context,
-                    primary,
-                  ),
+                  _buildGoalDisplay(context, primary, secondary),
 
                   const SizedBox(height: 18),
 
                   SizedBox(
                     height: 370,
-                    child: _buildGoalSelector(
-                      context,
-                      primary,
-                      secondary,
-                    ),
+                    child: _buildGoalSelector(context, primary, secondary),
                   ),
 
                   const SizedBox(height: 20),
 
-                  _buildRecommendedCard(
-                    context,
-                    primary,
-                    secondary,
-                  ),
+                  _buildRecommendedCard(context, primary, secondary),
 
                   const SizedBox(height: 26),
 
@@ -190,18 +153,11 @@ class _GoalScreenState extends State<GoalScreen>
 
                   const SizedBox(height: 12),
 
-                  _buildPresets(
-                    context,
-                    primary,
-                  ),
+                  _buildPresets(context, primary),
 
                   const SizedBox(height: 28),
 
-                  _buildContinueButton(
-                    context,
-                    primary,
-                    secondary,
-                  ),
+                  _buildContinueButton(context, primary, secondary),
                 ],
               ),
             ),
@@ -211,10 +167,7 @@ class _GoalScreenState extends State<GoalScreen>
     );
   }
 
-  Widget _buildTopBar(
-    BuildContext context,
-    Color primary,
-  ) {
+  Widget _buildTopBar(BuildContext context, Color primary) {
     return Align(
       alignment: Alignment.centerLeft,
       child: Material(
@@ -235,54 +188,19 @@ class _GoalScreenState extends State<GoalScreen>
     );
   }
 
-  Widget _buildProgressIndicator(
-    BuildContext context,
-    Color primary,
-  ) {
+  Widget _buildProgressIndicator(BuildContext context, Color primary) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _progressCircle(
-          context,
-          '1',
-          false,
-          primary,
-        ),
-        _progressLine(
-          context,
-          primary,
-          active: true,
-        ),
-        _progressCircle(
-          context,
-          '2',
-          true,
-          primary,
-        ),
-        _progressLine(
-          context,
-          primary,
-          active: false,
-        ),
-        _progressCircle(
-          context,
-          '3',
-          false,
-          primary,
-        ),
-        _progressLine(
-          context,
-          primary,
-          active: false,
-        ),
-        _progressCircle(
-          context,
-          '4',
-          false,
-          primary,
-        ),
+        _progressCircle(context, '1', false, primary),
+        _progressLine(context, primary, active: true),
+        _progressCircle(context, '2', true, primary),
+        _progressLine(context, primary, active: false),
+        _progressCircle(context, '3', false, primary),
+        _progressLine(context, primary, active: false),
+        _progressCircle(context, '4', false, primary),
       ],
     );
   }
@@ -301,13 +219,9 @@ class _GoalScreenState extends State<GoalScreen>
       height: 38,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: active
-            ? primary
-            : colorScheme.surface,
+        color: active ? primary : colorScheme.surface,
         border: Border.all(
-          color: active
-              ? primary
-              : colorScheme.outlineVariant,
+          color: active ? primary : colorScheme.outlineVariant,
           width: 2,
         ),
         boxShadow: active
@@ -324,9 +238,7 @@ class _GoalScreenState extends State<GoalScreen>
         number,
         style: TextStyle(
           fontWeight: FontWeight.w700,
-          color: active
-              ? Colors.white
-              : colorScheme.onSurfaceVariant,
+          color: active ? Colors.white : colorScheme.onSurfaceVariant,
         ),
       ),
     );
@@ -343,16 +255,11 @@ class _GoalScreenState extends State<GoalScreen>
       height: 2,
       color: active
           ? primary.withValues(alpha: 0.55)
-          : Theme.of(context)
-              .colorScheme
-              .outlineVariant,
+          : Theme.of(context).colorScheme.outlineVariant,
     );
   }
 
-  Widget _buildGoalDisplay(
-    BuildContext context,
-    Color primary,
-  ) {
+  Widget _buildGoalDisplay(BuildContext context, Color primary, Color secondary) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Column(
@@ -362,10 +269,7 @@ class _GoalScreenState extends State<GoalScreen>
           transitionBuilder: (child, animation) {
             return FadeTransition(
               opacity: animation,
-              child: ScaleTransition(
-                scale: animation,
-                child: child,
-              ),
+              child: ScaleTransition(scale: animation, child: child),
             );
           },
           child: Text(
@@ -378,18 +282,8 @@ class _GoalScreenState extends State<GoalScreen>
               letterSpacing: -1.5,
               foreground: Paint()
                 ..shader = LinearGradient(
-                  colors: [
-                    primary,
-                    const Color(0xFF5AB8F2),
-                  ],
-                ).createShader(
-                  const Rect.fromLTWH(
-                    0,
-                    0,
-                    180,
-                    60,
-                  ),
-                ),
+                  colors: [primary, secondary],
+                ).createShader(const Rect.fromLTWH(0, 0, 180, 60)),
             ),
           ),
         ),
@@ -418,19 +312,12 @@ class _GoalScreenState extends State<GoalScreen>
 
         const SizedBox(width: 18),
 
-        _buildWaterBottle(
-          context,
-          primary,
-          secondary,
-        ),
+        _buildWaterBottle(context, primary, secondary),
       ],
     );
   }
 
-  Widget _buildScale(
-    BuildContext context,
-    Color primary,
-  ) {
+  Widget _buildScale(BuildContext context, Color primary) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return SizedBox(
@@ -441,81 +328,63 @@ class _GoalScreenState extends State<GoalScreen>
           Positioned.fill(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: List.generate(
-                21,
-                (index) {
-                  final value =
-                      _maxGoal - (index * _step * 2);
+              children: List.generate(21, (index) {
+                final value = _maxGoal - (index * _step * 2);
 
-                  final major = index % 5 == 0;
+                final major = index % 5 == 0;
 
-                  return Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      if (major)
-                        Text(
-                          '${(value / 1000).toStringAsFixed(value % 1000 == 0 ? 0 : 1)} L',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: colorScheme
-                                .onSurfaceVariant,
-                          ),
-                        ),
-                      const SizedBox(width: 8),
-                      Container(
-                        width: major ? 30 : 15,
-                        height: major ? 2 : 1.5,
-                        decoration: BoxDecoration(
-                          color: colorScheme
-                              .outlineVariant,
-                          borderRadius:
-                              BorderRadius.circular(4),
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (major)
+                      Text(
+                        '${(value / 1000).toStringAsFixed(value % 1000 == 0 ? 0 : 1)} L',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
-                    ],
-                  );
-                },
-              ),
+                    const SizedBox(width: 8),
+                    Container(
+                      width: major ? 30 : 15,
+                      height: major ? 2 : 1.5,
+                      decoration: BoxDecoration(
+                        color: colorScheme.outlineVariant,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                );
+              }),
             ),
           ),
 
           Positioned.fill(
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onVerticalDragUpdate: (details) {
-                final box = context.findRenderObject()
-                    as RenderBox;
 
-                final local =
-                    box.globalToLocal(details.globalPosition);
-
-                final height = box.size.height;
-
-                final ratio =
-                    1 - (local.dy / height);
-
-                final value = _minGoal +
-                    (ratio *
-                            (_maxGoal - _minGoal))
-                        .round();
-
-                _setGoal(value);
+              onVerticalDragStart: (details) {
+                _dragValue = _goal.toDouble();
               },
+
+              onVerticalDragUpdate: (details) {
+                const sensitivity = 6.0;
+
+                _dragValue -= details.delta.dy * sensitivity;
+
+                _setGoal(_dragValue.round());
+              },
+
               onTapDown: (details) {
-                final box = context.findRenderObject()
-                    as RenderBox;
+                final box = context.findRenderObject() as RenderBox;
 
-                final local =
-                    box.globalToLocal(details.globalPosition);
+                final local = box.globalToLocal(details.globalPosition);
 
-                final ratio =
-                    1 - (local.dy / box.size.height);
+                final ratio = 1 - (local.dy / box.size.height);
 
-                final value = _minGoal +
-                    (ratio *
-                            (_maxGoal - _minGoal))
-                        .round();
+                final value =
+                    _minGoal + (ratio * (_maxGoal - _minGoal)).round();
 
                 _setGoal(value);
               },
@@ -534,35 +403,25 @@ class _GoalScreenState extends State<GoalScreen>
     final colorScheme = Theme.of(context).colorScheme;
 
     return GestureDetector(
+      onVerticalDragStart: (details) {
+        _dragValue = _goal.toDouble();
+      },
+
       onVerticalDragUpdate: (details) {
-        final box = context.findRenderObject()
-            as RenderBox;
+        const sensitivity = 6.0;
 
-        final local =
-            box.globalToLocal(details.globalPosition);
+        _dragValue -= details.delta.dy * sensitivity;
 
-        final height = box.size.height;
-
-        final ratio =
-            1 - (local.dy / height);
-
-        final value = _minGoal +
-            (ratio * (_maxGoal - _minGoal)).round();
-
-        _setGoal(value);
+        _setGoal(_dragValue.round());
       },
       onTapDown: (details) {
-        final box = context.findRenderObject()
-            as RenderBox;
+        final box = context.findRenderObject() as RenderBox;
 
-        final local =
-            box.globalToLocal(details.globalPosition);
+        final local = box.globalToLocal(details.globalPosition);
 
-        final ratio =
-            1 - (local.dy / box.size.height);
+        final ratio = 1 - (local.dy / box.size.height);
 
-        final value = _minGoal +
-            (ratio * (_maxGoal - _minGoal)).round();
+        final value = _minGoal + (ratio * (_maxGoal - _minGoal)).round();
 
         _setGoal(value);
       },
@@ -571,25 +430,66 @@ class _GoalScreenState extends State<GoalScreen>
         height: 330,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final bottleHeight =
-                constraints.maxHeight - 10;
+            final bottleHeight = constraints.maxHeight - 10;
 
-            final fillHeight =
-                bottleHeight * _progress;
+            final fillHeight = bottleHeight * _progress;
 
             return Stack(
               alignment: Alignment.bottomCenter,
               children: [
+                // Bottle interior + fluid
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(48),
+                  child: SizedBox(
+                    width: 93,
+                    height: bottleHeight - 6,
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOutCubic,
+                        width: 93,
+                        height: fillHeight,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              primary.withValues(alpha: 0.78),
+                              primary,
+                              secondary,
+                            ],
+                          ),
+                        ),
+                        child: fillHeight > 40
+                            ? AnimatedBuilder(
+                                animation: _waterAnimationController,
+                                builder: (context, child) {
+                                  return CustomPaint(
+                                    painter: _WavePainter(
+                                      animation:
+                                          _waterAnimationController.value,
+                                      color: Colors.white.withValues(
+                                        alpha: 0.25,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              )
+                            : null,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Bottle outline
                 Container(
                   width: 105,
                   height: bottleHeight,
                   decoration: BoxDecoration(
-                    color: primary.withValues(alpha: 0.07),
+                    color: Colors.transparent,
                     borderRadius: BorderRadius.circular(54),
-                    border: Border.all(
-                      color: colorScheme.surface,
-                      width: 6,
-                    ),
+                    border: Border.all(color: colorScheme.surface, width: 6),
                     boxShadow: [
                       BoxShadow(
                         color: primary.withValues(alpha: 0.18),
@@ -599,48 +499,6 @@ class _GoalScreenState extends State<GoalScreen>
                     ],
                   ),
                 ),
-
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutCubic,
-                  width: 93,
-                  height: fillHeight,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        primary.withValues(alpha: 0.78),
-                        primary,
-                        secondary,
-                      ],
-                    ),
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(48),
-                      topRight: const Radius.circular(48),
-                      bottomLeft: const Radius.circular(45),
-                      bottomRight: const Radius.circular(45),
-                    ),
-                  ),
-                  child: fillHeight > 40
-                      ? AnimatedBuilder(
-                          animation:
-                              _waterAnimationController,
-                          builder: (context, child) {
-                            return CustomPaint(
-                              painter: _WavePainter(
-                                animation:
-                                    _waterAnimationController
-                                        .value,
-                                color: Colors.white
-                                    .withValues(alpha: 0.25),
-                              ),
-                            );
-                          },
-                        )
-                      : null,
-                ),
-
                 Positioned(
                   bottom: (bottleHeight * _progress) - 13,
                   child: Container(
@@ -651,8 +509,7 @@ class _GoalScreenState extends State<GoalScreen>
                       color: colorScheme.surface,
                       boxShadow: [
                         BoxShadow(
-                          color:
-                              primary.withValues(alpha: 0.25),
+                          color: primary.withValues(alpha: 0.25),
                           blurRadius: 12,
                         ),
                       ],
@@ -691,9 +548,7 @@ class _GoalScreenState extends State<GoalScreen>
             offset: const Offset(0, 6),
           ),
         ],
-        border: Border.all(
-          color: primary.withValues(alpha: 0.10),
-        ),
+        border: Border.all(color: primary.withValues(alpha: 0.10)),
       ),
       child: Row(
         children: [
@@ -704,16 +559,12 @@ class _GoalScreenState extends State<GoalScreen>
               shape: BoxShape.circle,
               color: primary.withValues(alpha: 0.12),
             ),
-            child: Icon(
-              Icons.water_drop_rounded,
-              color: primary,
-            ),
+            child: Icon(Icons.water_drop_rounded, color: primary),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Recommended starting goal',
@@ -745,16 +596,8 @@ class _GoalScreenState extends State<GoalScreen>
     );
   }
 
-  Widget _buildPresets(
-    BuildContext context,
-    Color primary,
-  ) {
-    const presets = [
-      1500,
-      2000,
-      2500,
-      3000,
-    ];
+  Widget _buildPresets(BuildContext context, Color primary) {
+    const presets = [1500, 2000, 2500, 3000];
 
     return Row(
       children: presets.map((value) {
@@ -762,29 +605,21 @@ class _GoalScreenState extends State<GoalScreen>
 
         return Expanded(
           child: Padding(
-            padding: EdgeInsets.only(
-              right: value == presets.last ? 0 : 8,
-            ),
+            padding: EdgeInsets.only(right: value == presets.last ? 0 : 8),
             child: GestureDetector(
               onTap: () => _selectPreset(value),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                  vertical: 13,
-                ),
+                padding: const EdgeInsets.symmetric(vertical: 13),
                 decoration: BoxDecoration(
                   color: selected
                       ? primary.withValues(alpha: 0.10)
-                      : Theme.of(context)
-                          .colorScheme
-                          .surface,
+                      : Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: selected
                         ? primary
-                        : Theme.of(context)
-                            .colorScheme
-                            .outlineVariant,
+                        : Theme.of(context).colorScheme.outlineVariant,
                     width: selected ? 1.5 : 1,
                   ),
                 ),
@@ -796,9 +631,7 @@ class _GoalScreenState extends State<GoalScreen>
                       fontSize: 14,
                       color: selected
                           ? primary
-                          : Theme.of(context)
-                              .colorScheme
-                              .onSurfaceVariant,
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -820,12 +653,7 @@ class _GoalScreenState extends State<GoalScreen>
       height: 58,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              primary,
-              secondary,
-            ],
-          ),
+          gradient: LinearGradient(colors: [primary, secondary]),
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
@@ -837,7 +665,9 @@ class _GoalScreenState extends State<GoalScreen>
         ),
         child: ElevatedButton(
           onPressed: () {
-            widget.onContinue?.call(_goal);
+            Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const ReminderScreen()));
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
@@ -853,16 +683,10 @@ class _GoalScreenState extends State<GoalScreen>
             children: [
               Text(
                 'Continue',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
               ),
               SizedBox(width: 10),
-              Icon(
-                Icons.arrow_forward_rounded,
-                size: 22,
-              ),
+              Icon(Icons.arrow_forward_rounded, size: 22),
             ],
           ),
         ),
@@ -884,9 +708,7 @@ class _Background extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final surface = isDark
-        ? const Color(0xFF101820)
-        : const Color(0xFFF5FAFB);
+    final surface = Theme.of(context).colorScheme.surface;
 
     return Positioned.fill(
       child: IgnorePointer(
@@ -896,13 +718,9 @@ class _Background extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                primary.withValues(
-                  alpha: isDark ? 0.20 : 0.12,
-                ),
+                primary.withValues(alpha: isDark ? 0.20 : 0.12),
                 surface,
-                secondary.withValues(
-                  alpha: isDark ? 0.16 : 0.09,
-                ),
+                secondary.withValues(alpha: isDark ? 0.16 : 0.09),
               ],
             ),
           ),
@@ -913,10 +731,7 @@ class _Background extends StatelessWidget {
 }
 
 class _WavePainter extends CustomPainter {
-  _WavePainter({
-    required this.animation,
-    required this.color,
-  });
+  _WavePainter({required this.animation, required this.color});
 
   final double animation;
   final Color color;
@@ -933,14 +748,10 @@ class _WavePainter extends CustomPainter {
     path.moveTo(0, waveHeight);
 
     for (double x = 0; x <= size.width; x += 2) {
-      final y = waveHeight *
+      final y =
+          waveHeight *
               0.5 *
-              (1 +
-                  0.8 *
-                      _sin(
-                        (x / waveLength) * 6.28 +
-                            animation * 6.28,
-                      )) +
+              (1 + 0.8 * _sin((x / waveLength) * 6.28 + animation * 6.28)) +
           1;
 
       path.lineTo(x, y);
@@ -965,10 +776,7 @@ class _WavePainter extends CustomPainter {
 
     final x2 = x * x;
 
-    return x -
-        (x2 * x) / 6 +
-        (x2 * x2 * x) / 120 -
-        (x2 * x2 * x2 * x) / 5040;
+    return x - (x2 * x) / 6 + (x2 * x2 * x) / 120 - (x2 * x2 * x2 * x) / 5040;
   }
 
   @override
