@@ -51,30 +51,36 @@ class AuthService {
   }
 
   Future<AuthResponse> signup({
-    required String name,
-    required String email,
-    required String password,
-  }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/signup'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'name': name, 'email': email, 'password': password}),
-      );
+  required String name,
+  required String email,
+  required String password,
+}) async {
+  try {
+    final response = await http.post(
+      Uri.parse('$baseUrl/signup'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'name': name, 'email': email, 'password': password}),
+    );
 
-      final data = jsonDecode(response.body);
+    // 🔍 ADD THESE DEBUG LOGS
+    print('STATUS CODE: ${response.statusCode}');
+    print('RESPONSE BODY: ${response.body}');
 
-      return AuthResponse(
-        success: response.statusCode == 201,
-        message: data['message'] ?? 'Signup failed.',
-      );
-    } catch (e) {
-      return const AuthResponse(
-        success: false,
-        message: 'Unable to connect to the server.',
-      );
-    }
+    final data = jsonDecode(response.body);
+
+    return AuthResponse(
+      // Accept both 200 and 201 just in case
+      success: response.statusCode == 200 || response.statusCode == 201,
+      message: data['message'] ?? 'Signup failed.',
+    );
+  } catch (e) {
+    print('ERROR CONNECTING: $e');
+    return const AuthResponse(
+      success: false,
+      message: 'Unable to connect to the server.',
+    );
   }
+}
 
   Future<AuthResponse> verifyEmail({
     required String email,

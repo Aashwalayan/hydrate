@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 
 class AuthScaffold extends StatelessWidget {
   const AuthScaffold({
@@ -42,7 +43,7 @@ class AuthScaffold extends StatelessWidget {
               ),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight - 48,
+                  minHeight: math.max(0.0, constraints.maxHeight - 48.0)
                 ),
                 child: Center(
                   child: ConstrainedBox(
