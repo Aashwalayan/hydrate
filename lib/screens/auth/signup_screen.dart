@@ -6,6 +6,7 @@ import '../../widgets/auth_text_field.dart';
 import '../../widgets/primary_button.dart';
 import 'login_screen.dart';
 import 'verify_email_screen.dart';
+import '../onboarding/goal_screen.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key, required this.authService});
@@ -67,6 +68,11 @@ class _SignupScreenState extends State<SignupScreen> {
           builder: (_) => VerifyEmailScreen(
             authService: widget.authService,
             email: _emailController.text.trim(),
+            onVerified: () {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute<void>(builder: (_) => const GoalScreen()),
+              );
+            },
           ),
         ),
       );

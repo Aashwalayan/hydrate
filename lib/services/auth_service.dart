@@ -93,6 +93,9 @@ class AuthService {
         body: jsonEncode({'email': email, 'otp': otp}),
       );
 
+      print('VERIFY STATUS: ${response.statusCode}');
+      print('VERIFY RESPONSE: ${response.body}');
+
       final data = jsonDecode(response.body);
 
       return AuthResponse(

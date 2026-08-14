@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/hydrate_theme.dart';
 
 class PersonalizationScreen extends StatefulWidget {
   const PersonalizationScreen({
@@ -18,12 +19,6 @@ class PersonalizationScreen extends StatefulWidget {
   @override
   State<PersonalizationScreen> createState() =>
       _PersonalizationScreenState();
-}
-
-enum HydrateTheme {
-  calm,
-  ocean,
-  lavender,
 }
 
 class _PersonalizationScreenState
@@ -506,7 +501,7 @@ class _PersonalizationScreenState
 
           _themeOption(
             context,
-            theme: HydrateTheme.lavender,
+            theme: HydrateTheme.mist,
             primary: const Color(0xFF8CB8F2),
             secondary: const Color(0xFFA78BFA),
             title: 'Mist',

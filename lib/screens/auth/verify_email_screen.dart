@@ -6,18 +6,20 @@ import '../../services/auth_service.dart';
 import '../../widgets/auth_scaffold.dart';
 import '../../widgets/auth_text_field.dart';
 import '../../widgets/primary_button.dart';
-import '../home/home_screen.dart';
 import 'login_screen.dart';
+import '../onboarding/goal_screen.dart';
 
 class VerifyEmailScreen extends StatefulWidget {
   const VerifyEmailScreen({
     super.key,
     required this.authService,
     required this.email,
+    this.onVerified,
   });
 
   final AuthService authService;
   final String email;
+  final VoidCallback? onVerified;
 
   @override
   State<VerifyEmailScreen> createState() => _VerifyEmailScreenState();
@@ -49,27 +51,40 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
 
   void _startTimer() {
     _timer?.cancel();
-    setState(() => _remainingSeconds = _resendDelaySeconds);
+
+    setState(() {
+      _remainingSeconds = _resendDelaySeconds;
+    });
+
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_remainingSeconds <= 1) {
         timer.cancel();
+
         if (mounted) {
-          setState(() => _remainingSeconds = 0);
+          setState(() {
+            _remainingSeconds = 0;
+          });
         }
       } else if (mounted) {
-        setState(() => _remainingSeconds--);
+        setState(() {
+          _remainingSeconds--;
+        });
       }
     });
   }
 
   Future<void> _verify() async {
     final form = _formKey.currentState;
+
     if (form == null || !form.validate()) {
       return;
     }
 
     FocusScope.of(context).unfocus();
-    setState(() => _isSubmitting = true);
+
+    setState(() {
+      _isSubmitting = true;
+    });
 
     final response = await widget.authService.verifyEmail(
       email: widget.email,
@@ -80,16 +95,17 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       return;
     }
 
-    setState(() => _isSubmitting = false);
+    setState(() {
+      _isSubmitting = false;
+    });
 
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(response.message)));
 
     if (response.success) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
-        (route) => false,
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => const GoalScreen()),
       );
     }
   }
@@ -99,7 +115,10 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       return;
     }
 
-    setState(() => _isResending = true);
+    setState(() {
+      _isResending = true;
+    });
+
     final response = await widget.authService.resendVerificationCode(
       email: widget.email,
     );
@@ -108,7 +127,10 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       return;
     }
 
-    setState(() => _isResending = false);
+    setState(() {
+      _isResending = false;
+    });
+
     _startTimer();
 
     ScaffoldMessenger.of(
@@ -119,6 +141,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
       body: AuthScaffold(
@@ -132,14 +155,14 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.08),
+                  color: colorScheme.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Row(
                   children: [
                     Icon(
                       Icons.mark_email_read_outlined,
-                      color: theme.colorScheme.primary,
+                      color: colorScheme.primary,
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -153,7 +176,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                   ],
                 ),
               ),
+
               const SizedBox(height: 18),
+
               AuthTextField(
                 controller: _otpController,
                 label: 'Verification code',
@@ -165,22 +190,29 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                 autofillHints: const [AutofillHints.oneTimeCode],
                 validator: (value) {
                   final trimmedValue = value?.trim() ?? '';
+
                   if (trimmedValue.isEmpty) {
                     return 'Verification code is required.';
                   }
+
                   if (!RegExp(r'^\d{6}$').hasMatch(trimmedValue)) {
                     return 'Enter a valid 6-digit code.';
                   }
+
                   return null;
                 },
               ),
+
               const SizedBox(height: 24),
+
               PrimaryButton(
                 label: 'Verify',
                 isLoading: _isSubmitting,
                 onPressed: _verify,
               ),
+
               const SizedBox(height: 18),
+
               TextButton(
                 onPressed: _isResending || _remainingSeconds > 0
                     ? null
@@ -193,11 +225,14 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                       )
                     : Text(
                         _remainingSeconds > 0
-                            ? 'Resend code in ${_remainingSeconds}s'
+                            ? 'Resend code in '
+                                  '${_remainingSeconds}s'
                             : 'Resend OTP',
                       ),
               ),
+
               const SizedBox(height: 8),
+
               TextButton(
                 onPressed: () {
                   Navigator.of(context).pushAndRemoveUntil(

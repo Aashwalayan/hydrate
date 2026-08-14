@@ -1,71 +1,72 @@
 import 'package:flutter/material.dart';
 
+import 'screens/auth/signup_screen.dart';
 import 'screens/onboarding/welcome_screen.dart';
 import 'screens/onboarding/goal_screen.dart';
 import 'screens/onboarding/reminder_screen.dart';
 import 'screens/onboarding/personalization_screen.dart';
+import 'services/auth_service.dart';
 import 'theme/app_theme.dart';
+import 'theme/theme_controller.dart';
+
+final GlobalKey<NavigatorState> navigatorKey =
+    GlobalKey<NavigatorState>();
 
 void main() {
   runApp(const HydrateApp());
 }
 
-class HydrateApp extends StatelessWidget {
+class HydrateApp extends StatefulWidget {
   const HydrateApp({super.key});
 
-  static final GlobalKey<NavigatorState> navigatorKey =
-      GlobalKey<NavigatorState>();
+  @override
+  State<HydrateApp> createState() => _HydrateAppState();
+}
+
+class _HydrateAppState extends State<HydrateApp> {
+  final ThemeController _themeController =
+      ThemeController();
+
+  @override
+  void dispose() {
+    _themeController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Hydrate',
-      debugShowCheckedModeBanner: false,
+    return ListenableBuilder(
+      listenable: _themeController,
+      builder: (context, child) {
+        return MaterialApp(
+          title: 'Hydrate',
+          debugShowCheckedModeBanner: false,
 
-      navigatorKey: navigatorKey,
+          navigatorKey: navigatorKey,
 
-      themeMode: ThemeMode.system,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+          themeMode: _themeController.themeMode,
 
-      home: WelcomeScreen(
-        onGetStarted: () {
-          navigatorKey.currentState!.push(
-            MaterialPageRoute(
-              builder: (_) => GoalScreen(
-                onContinue: (goal) {
-                  navigatorKey.currentState!.push(
-                    MaterialPageRoute(
-                      builder: (_) => ReminderScreen(
-                        onContinue: (
-                          enabled,
-                          interval,
-                          startTime,
-                          endTime,
-                        ) {
-                          navigatorKey.currentState!.push(
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  PersonalizationScreen(
-                                onFinish: (
-                                  themeMode,
-                                  theme,
-                                ) {
-                                  // We'll connect this to Home later.
-                                },
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          );
-        },
-      ),
+          theme: AppTheme.lightTheme(
+            _themeController.hydrateTheme,
+          ),
+
+          darkTheme: AppTheme.darkTheme(
+            _themeController.hydrateTheme,
+          ),
+
+          home: WelcomeScreen(
+            onGetStarted: () {
+              navigatorKey.currentState!.push(
+                MaterialPageRoute(
+                  builder: (_) => SignupScreen(
+                    authService: AuthService(),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

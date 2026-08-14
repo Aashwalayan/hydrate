@@ -1,6 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
-class WelcomeScreen extends StatelessWidget {
+Future<void> wakeServer() async {
+  try {
+    await http.get(
+      Uri.parse('https://hydrate-vor8.onrender.com'),
+    );
+  } catch (_) {
+    // we dont actually need to have an error here, since the server is just being woken up and we don't care about the response
+  }
+}
+
+class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({
     super.key,
     this.onGetStarted,
@@ -12,6 +23,15 @@ class WelcomeScreen extends StatelessWidget {
   static const Color _secondary = Color(0xFF7FD8C7);
 
   @override
+  State<WelcomeScreen> createState() => _WelcomeScreenState();
+}
+
+class _WelcomeScreenState extends State<WelcomeScreen> {
+  @override
+  void initState() {
+  super.initState();
+  wakeServer();
+}
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -22,11 +42,11 @@ class WelcomeScreen extends StatelessWidget {
 
     final primary = isDark
         ? const Color(0xFF5FD3F3)
-        : _primary;
+        : WelcomeScreen._primary;
 
     final secondary = isDark
         ? const Color(0xFF6FE0C9)
-        : _secondary;
+        : WelcomeScreen._secondary;
 
     return Scaffold(
       backgroundColor: surface,
@@ -136,7 +156,7 @@ class WelcomeScreen extends StatelessWidget {
                         ],
                       ),
                       child: ElevatedButton(
-                        onPressed: onGetStarted,
+                        onPressed: widget.onGetStarted,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
                           foregroundColor: Colors.white,
