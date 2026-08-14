@@ -89,7 +89,7 @@ class _SignupScreenState extends State<SignupScreen> {
               AuthTextField(
                 controller: _nameController,
                 label: 'Name',
-                hintText: 'Alex Johnson',
+                hintText: 'Aashwalayan',
                 textCapitalization: TextCapitalization.words,
                 textInputAction: TextInputAction.next,
                 prefixIcon: Icons.person_outline_rounded,

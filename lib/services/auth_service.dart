@@ -15,7 +15,7 @@ class AuthResponse {
 
 class AuthService {
   // Android emulator → your computer's localhost
-  static const String baseUrl = 'http://10.0.2.2:4000/api/auth';
+  static const String baseUrl = 'https://hydrate-vor8.onrender.com/api/auth';
 
   Future<AuthResponse> login({
     required String email,
