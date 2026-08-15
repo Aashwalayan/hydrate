@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/hydrate_theme.dart';
 import '../../theme/theme_controller.dart';
 import '../../theme/theme_provider.dart';
-import '../home/home_screen.dart';
+import '../home/main_screen.dart';
 
 class PersonalizationScreen extends StatefulWidget {
   const PersonalizationScreen({
@@ -44,6 +44,9 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
   await prefs.setString('theme_mode', _themeMode.name);
   await prefs.setString('hydrate_theme', _theme.name);
 
+  // Mark onboarding as completed.
+  await prefs.setBool('onboarding_complete', true);
+
   _themeController.setSettings(
     themeMode: _themeMode,
     hydrateTheme: _theme,
@@ -55,7 +58,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
 
   Navigator.of(context).pushAndRemoveUntil(
     MaterialPageRoute<void>(
-      builder: (_) => const HomeScreen(),
+      builder: (_) => const MainScreen(),
     ),
     (route) => false,
   );

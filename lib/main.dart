@@ -6,6 +6,7 @@ import 'services/auth_service.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_controller.dart';
 import 'theme/theme_provider.dart';
+import 'screens/auth/auth_gate.dart'; 
 
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>();
@@ -54,17 +55,7 @@ class _HydrateAppState extends State<HydrateApp> {
             _themeController.hydrateTheme,
           ),
 
-          home: WelcomeScreen(
-            onGetStarted: () {
-              navigatorKey.currentState!.push(
-                MaterialPageRoute(
-                  builder: (_) => SignupScreen(
-                    authService: AuthService(),
-                  ),
-                ),
-              );
-            },
-          ),
+          home: AuthGate(),
       )
         );
       },
