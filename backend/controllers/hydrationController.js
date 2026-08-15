@@ -211,5 +211,8 @@ const getHistory = async (req, res) => {
 
 module.exports = {
     getSettings,
-    createOrUpdateSettings
+    createOrUpdateSettings,
+    addWater,
+    getToday,
+    getHistory
 };
