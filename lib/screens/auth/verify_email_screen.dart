@@ -92,6 +92,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       otp: _otpController.text.trim(),
     );
 
+    print('VERIFY TOKEN: ${response.token}');
+
     if (!mounted) {
       return;
     }
