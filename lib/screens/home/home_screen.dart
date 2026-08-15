@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../services/auth_service.dart';
+
 /// Mock model for a single logged hydration entry.
 ///
 /// Structured so a real backend/hydration-record model can replace this
@@ -30,7 +32,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   // --- Mock data. Replace with real state/providers later. -----------------
-  final String userName = 'Aashwalayan';
+  String _userName = 'there';
+  String _greeting = 'Good evening';
   final double currentIntake = 1250;
   final double dailyGoal = 2500;
 
@@ -52,7 +55,34 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _loadUserData();
     _startCountdown();
+  }
+
+  Future<void> _loadUserData() async {
+    final authService = AuthService();
+    final name = await authService.getUserName();
+
+    if (!mounted) return;
+
+    setState(() {
+      _userName = name ?? 'there';
+      _greeting = _getGreeting();
+    });
+  }
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+
+    if (hour >= 5 && hour < 12) {
+      return 'Good morning';
+    }
+
+    if (hour >= 12 && hour < 17) {
+      return 'Good afternoon';
+    }
+
+    return 'Good evening';
   }
 
   void _startCountdown() {
@@ -109,7 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  _Greeting(userName: userName),
+                  _Greeting(userName: _userName, greeting: _greeting),
                   const SizedBox(height: 28),
                   _HydrationProgress(
                     currentIntake: currentIntake,
@@ -136,23 +166,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Greeting
-// ---------------------------------------------------------------------------
-
 class _Greeting extends StatelessWidget {
-  const _Greeting({required this.userName});
+  const _Greeting({required this.userName, required this.greeting});
 
   final String userName;
+  final String greeting;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Good morning, $userName',
+          '$greeting, $userName',
           style: theme.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w700,
           ),
@@ -169,9 +197,6 @@ class _Greeting extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Hydration progress — animated water-fill circle
-// ---------------------------------------------------------------------------
 
 class _HydrationProgress extends StatefulWidget {
   const _HydrationProgress({
@@ -345,9 +370,9 @@ class _WaterCirclePainter extends CustomPainter {
     final path = Path()..moveTo(0, size.height);
     path.lineTo(0, waterHeight);
     for (double x = 0; x <= size.width; x++) {
-      final y = waterHeight +
-          waveAmplitude *
-              math.sin((x / waveLength * 2 * math.pi) + wavePhase);
+      final y =
+          waterHeight +
+          waveAmplitude * math.sin((x / waveLength * 2 * math.pi) + wavePhase);
       path.lineTo(x, y);
     }
     path.lineTo(size.width, size.height);
@@ -669,9 +694,7 @@ class _NextReminderCard extends StatelessWidget {
               TextButton(
                 onPressed: onSkip,
                 style: TextButton.styleFrom(
-                  foregroundColor: colorScheme.onSurface.withValues(
-                    alpha: 0.6,
-                  ),
+                  foregroundColor: colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
                 child: const Text('Skip'),
               ),

@@ -18,6 +18,16 @@ class AuthService {
   // Android emulator → your computer's localhost
   static const String baseUrl = 'https://hydrate-vor8.onrender.com/api/auth';
 
+  Future<void> _saveUserName(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_name', name);
+  }
+
+  Future<String?> getUserName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('user_name');
+  }
+
   Future<void> _saveToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('auth_token', token);
@@ -66,6 +76,12 @@ class AuthService {
           await _saveToken(token);
         }
 
+        final user = data['user'];
+
+        if (user != null && user['name'] != null) {
+          await _saveUserName(user['name']);
+        }
+
         return AuthResponse(
           success: true,
           message: data['message'] ?? 'Login successful.',
@@ -105,7 +121,6 @@ class AuthService {
         message: data['message'] ?? 'Signup failed.',
       );
     } catch (e) {
-      print('ERROR CONNECTING: $e');
       return const AuthResponse(
         success: false,
         message: 'Unable to connect to the server.',
@@ -131,6 +146,12 @@ class AuthService {
 
         if (token != null) {
           await _saveToken(token);
+        }
+
+        final user = data['user'];
+
+        if (user != null && user['name'] != null) {
+          await _saveUserName(user['name']);
         }
 
         return AuthResponse(
