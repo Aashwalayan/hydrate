@@ -78,7 +78,6 @@ class _ReminderScreenState extends State<ReminderScreen> {
       initialTime: start ? _startTime : _endTime,
       builder: (context, child) {
         final theme = Theme.of(context);
-        final isDark = theme.brightness == Brightness.dark;
 
         return Theme(
           data: theme.copyWith(

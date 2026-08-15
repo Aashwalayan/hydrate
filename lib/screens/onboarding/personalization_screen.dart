@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../theme/hydrate_theme.dart';
 import '../../theme/theme_controller.dart';
 import '../../theme/theme_provider.dart';
+import '../home/home_screen.dart';
 
 class PersonalizationScreen extends StatefulWidget {
   const PersonalizationScreen({
@@ -35,11 +38,28 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     _theme = widget.initialTheme;
   }
 
-  void _finish() {
-    _themeController.setSettings(themeMode: _themeMode, hydrateTheme: _theme);
+  Future<void> _finish() async {
+  final prefs = await SharedPreferences.getInstance();
 
-    widget.onFinish?.call(_themeMode, _theme);
-  }
+  await prefs.setString('theme_mode', _themeMode.name);
+  await prefs.setString('hydrate_theme', _theme.name);
+
+  _themeController.setSettings(
+    themeMode: _themeMode,
+    hydrateTheme: _theme,
+  );
+
+  widget.onFinish?.call(_themeMode, _theme);
+
+  if (!mounted) return;
+
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute<void>(
+      builder: (_) => const HomeScreen(),
+    ),
+    (route) => false,
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -431,7 +451,6 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
         });
 
         _themeController.setHydrateTheme(theme);
-        print('SELECTED THEME: ${_themeController.hydrateTheme}');
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),

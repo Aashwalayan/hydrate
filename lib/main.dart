@@ -2,9 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'screens/auth/signup_screen.dart';
 import 'screens/onboarding/welcome_screen.dart';
-import 'screens/onboarding/goal_screen.dart';
-import 'screens/onboarding/reminder_screen.dart';
-import 'screens/onboarding/personalization_screen.dart';
 import 'services/auth_service.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_controller.dart';
