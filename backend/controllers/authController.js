@@ -89,8 +89,20 @@ const verifyEmail = async (req, res) => {
 
         await user.save();
 
+        const token = jwt.sign(
+            {
+                userId: user._id,
+                email: user.email
+            },
+            process.env.JWT_SECRET,
+            {
+                expiresIn: "7d"
+            }
+        );
+
         res.status(200).json({
-            message: "Email verified successfully"
+            message: "Email verified successfully",
+            token
         });
 
     } catch (error) {
