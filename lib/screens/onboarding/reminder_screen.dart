@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'personalization_screen.dart';
+import '../../services/hydration_service.dart';
 
 class ReminderScreen extends StatefulWidget {
   const ReminderScreen({
@@ -9,12 +10,14 @@ class ReminderScreen extends StatefulWidget {
     this.initialStartTime,
     this.initialEndTime,
     this.onContinue,
+    required this.dailyGoalMl,
   });
 
   final bool initialEnabled;
   final Duration initialInterval;
   final TimeOfDay? initialStartTime;
   final TimeOfDay? initialEndTime;
+  final int dailyGoalMl;
   final void Function(
     bool enabled,
     Duration interval,
@@ -32,6 +35,8 @@ class _ReminderScreenState extends State<ReminderScreen> {
   late Duration _interval;
   late TimeOfDay _startTime;
   late TimeOfDay _endTime;
+
+  final HydrationService _hydrationService = HydrationService();
 
   @override
   void initState() {
@@ -95,7 +100,33 @@ class _ReminderScreenState extends State<ReminderScreen> {
     });
   }
 
-  void _continue() {
+  String _formatTimeForApi(TimeOfDay time) {
+  final hour = time.hour.toString().padLeft(2, '0');
+  final minute = time.minute.toString().padLeft(2, '0');
+
+  return '$hour:$minute';
+}
+
+  Future<void> _continue() async {
+  final response = await _hydrationService.saveSettings(
+    dailyGoalMl: widget.dailyGoalMl,
+    enabled: _remindersEnabled,
+    interval: _interval,
+    startTime: _formatTimeForApi(_startTime),
+    endTime: _formatTimeForApi(_endTime),
+  );
+
+  if (!mounted) return;
+
+  if (!response.success) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(response.message),
+      ),
+    );
+    return;
+  }
+
   widget.onContinue?.call(
     _remindersEnabled,
     _interval,

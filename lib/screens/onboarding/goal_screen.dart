@@ -189,7 +189,6 @@ class _GoalScreenState extends State<GoalScreen>
   }
 
   Widget _buildProgressIndicator(BuildContext context, Color primary) {
-    final colorScheme = Theme.of(context).colorScheme;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -259,7 +258,11 @@ class _GoalScreenState extends State<GoalScreen>
     );
   }
 
-  Widget _buildGoalDisplay(BuildContext context, Color primary, Color secondary) {
+  Widget _buildGoalDisplay(
+    BuildContext context,
+    Color primary,
+    Color secondary,
+  ) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Column(
@@ -665,9 +668,11 @@ class _GoalScreenState extends State<GoalScreen>
         ),
         child: ElevatedButton(
           onPressed: () {
-            Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const ReminderScreen()));
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ReminderScreen(dailyGoalMl: _goal),
+              ),
+            );
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,

@@ -7,6 +7,7 @@ import '../../widgets/primary_button.dart';
 import '../home/home_screen.dart';
 import 'forgot_password_screen.dart';
 import 'signup_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.authService});
@@ -57,6 +58,10 @@ class _LoginScreenState extends State<LoginScreen> {
     ).showSnackBar(SnackBar(content: Text(response.message)));
 
     if (response.success) {
+      final prefs = await SharedPreferences.getInstance();
+
+      await prefs.setString('auth_token', response.token!);
+
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
       );
