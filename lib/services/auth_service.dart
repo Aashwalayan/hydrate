@@ -83,30 +83,36 @@ class AuthService {
 }
 
   Future<AuthResponse> verifyEmail({
-    required String email,
-    required String otp,
-  }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/verify-email'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'otp': otp}),
-      );
+  required String email,
+  required String otp,
+}) async {
+  try {
+    final response = await http.post(
+      Uri.parse('$baseUrl/verify-email'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email,
+        'otp': otp,
+      }),
+    );
 
+    print('VERIFY STATUS: ${response.statusCode}');
+    print('VERIFY RESPONSE: ${response.body}');
 
-      final data = jsonDecode(response.body);
+    final data = jsonDecode(response.body);
 
-      return AuthResponse(
-        success: response.statusCode == 200,
-        message: data['message'] ?? 'Verification failed.',
-      );
-    } catch (e) {
-      return const AuthResponse(
-        success: false,
-        message: 'Unable to connect to the server.',
-      );
-    }
+    return AuthResponse(
+      success: response.statusCode == 200,
+      message: data['message'] ?? 'Verification failed.',
+      token: data['token'],
+    );
+  } catch (e) {
+    return const AuthResponse(
+      success: false,
+      message: 'Unable to connect to the server.',
+    );
   }
+}
 
   Future<AuthResponse> resendVerificationCode({required String email}) async {
     try {

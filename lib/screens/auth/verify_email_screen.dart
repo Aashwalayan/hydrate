@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/auth_service.dart';
 import '../../widgets/auth_scaffold.dart';
@@ -93,6 +94,16 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
 
     if (!mounted) {
       return;
+    }
+
+    if (response.success && response.token != null) {
+      final prefs = await SharedPreferences.getInstance();
+
+      await prefs.setString('auth_token', response.token!);
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => const GoalScreen()),
+      );
     }
 
     setState(() {
