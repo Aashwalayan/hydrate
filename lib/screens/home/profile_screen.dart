@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../profile/appearance_screen.dart';
 import '../profile/about_screen.dart';
 import '../profile/account_screen.dart';
+import '../profile/hydration_goal_screen.dart';
 
 import '../../services//auth_service.dart';
 import '../../services/hydration_service.dart';
@@ -114,6 +115,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ProfileOptionData(
         icon: Icons.local_drink_outlined,
         label: 'Hydration Goal',
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const HydrationGoalScreen()),
+          );
+        },
       ),
       ProfileOptionData(
         icon: Icons.person_outline_rounded,

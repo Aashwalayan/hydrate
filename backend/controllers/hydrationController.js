@@ -210,10 +210,76 @@ const getHistory = async (req, res) => {
     }
 };
 
+const updateGoal = async (req, res) => {
+    try {
+        const { dailyGoalMl } = req.body;
+
+        if (!dailyGoalMl || dailyGoalMl <= 0) {
+            return res.status(400).json({
+                message: "A valid hydration goal is required"
+            });
+        }
+
+        // Update the user's hydration settings
+        const settings = await HydrationSettings.findOneAndUpdate(
+            { userId: req.user.userId },
+            { dailyGoalMl },
+            {
+                new: true,
+                runValidators: true
+            }
+        );
+
+        if (!settings) {
+            return res.status(404).json({
+                message: "Hydration settings not found"
+            });
+        }
+
+        // Update today's daily record if one already exists
+        const today = new Date();
+        const date =
+            `${today.getFullYear()}-` +
+            `${String(today.getMonth() + 1).padStart(2, "0")}-` +
+            `${String(today.getDate()).padStart(2, "0")}`;
+
+        const daily = await HydrationDaily.findOne({
+            userId: req.user.userId,
+            date
+        });
+
+        if (daily) {
+            daily.goalMl = dailyGoalMl;
+
+            daily.completionPercent = dailyGoalMl <= 0
+                ? 0
+                : Math.round((daily.intakeMl / dailyGoalMl) * 100);
+
+            daily.level = getLevel(daily.completionPercent);
+
+            await daily.save();
+        }
+
+        res.status(200).json({
+            message: "Hydration goal updated successfully",
+            settings,
+            daily
+        });
+
+    } catch (error) {
+        console.error(error);
+
+        res.status(500).json({
+            message: "Something went wrong"
+        });
+    }
+};
+
 
 module.exports = {
     getSettings,
     createOrUpdateSettings,
+    updateGoal,
     addWater,
     getToday,
     getHistory

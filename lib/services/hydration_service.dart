@@ -89,6 +89,27 @@ class HydrationService {
     await prefs.setString(_todayCacheKey, jsonEncode(today.toJson()));
   }
 
+  Future<void> updateCachedGoal(int goalMl) async {
+    final today = await getCachedToday();
+
+    if (today == null) return;
+
+    final completionPercent = goalMl <= 0
+        ? 0
+        : ((today.intakeMl / goalMl) * 100).round();
+
+    final updated = DailyHydration(
+      date: today.date,
+      goalMl: goalMl,
+      intakeMl: today.intakeMl,
+      completionPercent: completionPercent,
+      level: today.level,
+      entries: today.entries,
+    );
+
+    await _cacheToday(updated);
+  }
+
   Future<DailyHydration?> _getCachedToday() async {
     final prefs = await SharedPreferences.getInstance();
 

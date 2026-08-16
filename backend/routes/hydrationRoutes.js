@@ -3,6 +3,7 @@ const express = require("express");
 const {
   getSettings,
   createOrUpdateSettings,
+  updateGoal,
   addWater,
   getToday,
   getHistory
@@ -21,5 +22,7 @@ router.get("/today", authMiddleware, getToday);
 router.get("/history", authMiddleware, getHistory);
 
 router.post("/water", authMiddleware, addWater);
+
+router.patch('/goal')
 
 module.exports = router;
