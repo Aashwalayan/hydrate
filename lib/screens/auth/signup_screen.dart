@@ -95,7 +95,7 @@ class _SignupScreenState extends State<SignupScreen> {
               AuthTextField(
                 controller: _nameController,
                 label: 'Name',
-                hintText: 'Aashwalayan',
+                hintText: 'nomnomgng',
                 textCapitalization: TextCapitalization.words,
                 textInputAction: TextInputAction.next,
                 prefixIcon: Icons.person_outline_rounded,

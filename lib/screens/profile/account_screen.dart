@@ -169,9 +169,6 @@ class _AccountScreenState extends State<AccountScreen> {
       },
     );
 
-    currentController.dispose();
-    newController.dispose();
-    confirmController.dispose();
 
     if (result == null || !mounted) return;
 
@@ -239,7 +236,6 @@ class _AccountScreenState extends State<AccountScreen> {
       },
     );
 
-    controller.dispose();
     if (newName == null || newName == _name || !mounted) return;
 
     if (widget.onNameChanged == null) {
