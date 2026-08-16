@@ -258,6 +258,57 @@ class HydrationService {
     return today;
   }
 
+  Future<HydrationResponse> updateGoal(int goalMl) async {
+    try {
+      final headers = await _authHeaders();
+
+      if (headers == null) {
+        return const HydrationResponse(
+          success: false,
+          message: 'Authentication token not found.',
+        );
+      }
+
+      final response = await http.patch(
+        Uri.parse('$baseUrl/goal'),
+        headers: headers,
+        body: jsonEncode({'dailyGoalMl': goalMl}),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode != 200) {
+        return HydrationResponse(
+          success: false,
+          message: data['message'] ?? 'Failed to update hydration goal.',
+        );
+      }
+
+      // The backend returns today's updated daily record when one exists.
+      if (data['daily'] != null) {
+        final daily = DailyHydration.fromJson(
+          data['daily'] as Map<String, dynamic>,
+        );
+
+        await _cacheToday(daily);
+      } else {
+        // No daily record exists yet.
+        // Preserve the existing cached intake and update only the goal.
+        await updateCachedGoal(goalMl);
+      }
+
+      return HydrationResponse(
+        success: true,
+        message: data['message'] ?? 'Hydration goal updated successfully.',
+      );
+    } catch (e) {
+      return const HydrationResponse(
+        success: false,
+        message: 'Unable to connect to the server.',
+      );
+    }
+  }
+
   Future<List<DailyHydration>> getHistory() async {
     final headers = await _authHeaders();
 

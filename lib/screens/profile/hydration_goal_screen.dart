@@ -1,8 +1,7 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../../services/hydration_service.dart';
+import '../../widgets/hydration_progress.dart';
 
 class HydrationGoalScreen extends StatefulWidget {
   const HydrationGoalScreen({super.key});
@@ -21,13 +20,7 @@ class _HydrationGoalScreenState extends State<HydrationGoalScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
 
-  static const List<int> _presetGoals = [
-    1500,
-    2000,
-    2500,
-    3000,
-    3500,
-  ];
+  static const List<int> _presetGoals = [1500, 2000, 2500, 3000, 3500];
 
   @override
   void initState() {
@@ -95,36 +88,35 @@ class _HydrationGoalScreenState extends State<HydrationGoalScreen> {
       _isSaving = true;
     });
 
-    try {
-      await _hydrationService.updateCachedGoal(newGoal);
+    final result = await _hydrationService.updateGoal(newGoal);
 
-      if (!mounted) return;
+    if (!mounted) return;
 
-      final updatedToday = await _hydrationService.getCachedToday();
-
-      setState(() {
-        _today = updatedToday;
-        _isSaving = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Hydration goal updated.'),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
+    if (!result.success) {
       setState(() {
         _isSaving = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to update hydration goal.'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result.message)));
+
+      return;
     }
+
+    final updatedToday = await _hydrationService.getCachedToday();
+
+    if (!mounted) return;
+
+    setState(() {
+      _today = updatedToday;
+      _selectedGoal = newGoal;
+      _isSaving = false;
+    });
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Hydration goal updated.')));
   }
 
   @override
@@ -141,123 +133,104 @@ class _HydrationGoalScreenState extends State<HydrationGoalScreen> {
         title: const Text('Hydration Goal'),
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
+          ? const Center(child: CircularProgressIndicator())
           : _today == null
-              ? _EmptyGoalState(
-                  onRetry: _loadCachedHydration,
-                )
-              : SafeArea(
-                  top: false,
-                  child: CustomScrollView(
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(
-                          20,
-                          12,
-                          20,
-                          32,
+          ? _EmptyGoalState(onRetry: _loadCachedHydration)
+          : SafeArea(
+              top: false,
+              child: CustomScrollView(
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        _CurrentGoalCard(goalMl: _today!.goalMl),
+
+                        const SizedBox(height: 32),
+
+                        HydrationProgress(
+                          currentIntake: _today!.intakeMl,
+                          dailyGoal: _today!.goalMl,
+                          isLoading: false,
                         ),
-                        sliver: SliverList(
-                          delegate: SliverChildListDelegate([
-                            _CurrentGoalCard(
-                              goalMl: _today!.goalMl,
-                            ),
 
-                            const SizedBox(height: 32),
+                        const SizedBox(height: 36),
 
-                            _HydrationProgress(
-                              currentIntake: _today!.intakeMl,
-                              dailyGoal: _today!.goalMl,
-                              isLoading: false,
-                            ),
-
-                            const SizedBox(height: 36),
-
-                            Text(
-                              'CHANGE GOAL',
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                letterSpacing: 1.5,
-                                fontWeight: FontWeight.w600,
-                                color: colorScheme.onSurface.withValues(
-                                  alpha: 0.5,
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            _PresetGoalSelector(
-                              goals: _presetGoals,
-                              selectedGoal: _selectedGoal,
-                              onSelected: _selectGoal,
-                            ),
-
-                            const SizedBox(height: 20),
-
-                            Text(
-                              'Custom amount',
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-
-                            const SizedBox(height: 10),
-
-                            _CustomGoalField(
-                              controller: _customGoalController,
-                              onChanged: _onCustomGoalChanged,
-                            ),
-
-                            const SizedBox(height: 8),
-
-                            Text(
-                              'Choose a goal between 500 ml and 10,000 ml.',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurface.withValues(
-                                  alpha: 0.5,
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 28),
-
-                            SizedBox(
-                              width: double.infinity,
-                              height: 52,
-                              child: FilledButton(
-                                onPressed: _hasChanged &&
-                                        _isValidGoal &&
-                                        !_isSaving
-                                    ? _updateGoal
-                                    : null,
-                                child: _isSaving
-                                    ? SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: colorScheme.onPrimary,
-                                        ),
-                                      )
-                                    : const Text('Update Goal'),
-                              ),
-                            ),
-                          ]),
+                        Text(
+                          'CHANGE GOAL',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            letterSpacing: 1.5,
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.onSurface.withValues(alpha: 0.5),
+                          ),
                         ),
-                      ),
-                    ],
+
+                        const SizedBox(height: 12),
+
+                        _PresetGoalSelector(
+                          goals: _presetGoals,
+                          selectedGoal: _selectedGoal,
+                          onSelected: _selectGoal,
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        Text(
+                          'Custom amount',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        _CustomGoalField(
+                          controller: _customGoalController,
+                          onChanged: _onCustomGoalChanged,
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        Text(
+                          'Choose a goal between 500 ml and 10,000 ml.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurface.withValues(alpha: 0.5),
+                          ),
+                        ),
+
+                        const SizedBox(height: 28),
+
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: FilledButton(
+                            onPressed: _hasChanged && _isValidGoal && !_isSaving
+                                ? _updateGoal
+                                : null,
+                            child: _isSaving
+                                ? SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: colorScheme.onPrimary,
+                                    ),
+                                  )
+                                : const Text('Update Goal'),
+                          ),
+                        ),
+                      ]),
+                    ),
                   ),
-                ),
+                ],
+              ),
+            ),
     );
   }
 }
 
 class _CurrentGoalCard extends StatelessWidget {
-  const _CurrentGoalCard({
-    required this.goalMl,
-  });
+  const _CurrentGoalCard({required this.goalMl});
 
   final int goalMl;
 
@@ -281,9 +254,7 @@ class _CurrentGoalCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.primaryContainer.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: colorScheme.primary.withValues(alpha: 0.10),
-        ),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.10)),
       ),
       child: Row(
         children: [
@@ -404,10 +375,7 @@ class _PresetGoalSelector extends StatelessWidget {
 }
 
 class _CustomGoalField extends StatelessWidget {
-  const _CustomGoalField({
-    required this.controller,
-    required this.onChanged,
-  });
+  const _CustomGoalField({required this.controller, required this.onChanged});
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
@@ -443,303 +411,15 @@ class _CustomGoalField extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(
-            color: colorScheme.primary,
-            width: 1.5,
-          ),
+          borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
         ),
       ),
     );
-  }
-}
-
-class _HydrationProgress extends StatefulWidget {
-  const _HydrationProgress({
-    required this.currentIntake,
-    required this.dailyGoal,
-    required this.isLoading,
-  });
-
-  final int currentIntake;
-  final int dailyGoal;
-  final bool isLoading;
-
-  @override
-  State<_HydrationProgress> createState() => _HydrationProgressState();
-}
-
-class _HydrationProgressState extends State<_HydrationProgress>
-    with TickerProviderStateMixin {
-  late final AnimationController _loadController;
-  late Animation<double> _fillAnimation;
-  late final AnimationController _waveController;
-
-  double get _progress {
-    if (widget.dailyGoal <= 0) return 0;
-
-    return (widget.currentIntake / widget.dailyGoal).clamp(0.0, 1.0);
-  }
-
-  @override
-  void initState() {
-    super.initState();
-
-    _loadController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    );
-
-    _fillAnimation = Tween<double>(
-      begin: 0,
-      end: _progress,
-    ).animate(
-      CurvedAnimation(
-        parent: _loadController,
-        curve: Curves.easeOutCubic,
-      ),
-    );
-
-    _waveController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat();
-
-    _loadController.forward();
-  }
-
-  @override
-  void didUpdateWidget(covariant _HydrationProgress oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    if (oldWidget.currentIntake != widget.currentIntake ||
-        oldWidget.dailyGoal != widget.dailyGoal) {
-      final begin = _fillAnimation.value;
-
-      _fillAnimation = Tween<double>(
-        begin: begin,
-        end: _progress,
-      ).animate(
-        CurvedAnimation(
-          parent: _loadController,
-          curve: Curves.easeOutCubic,
-        ),
-      );
-
-      _loadController
-        ..reset()
-        ..forward();
-    }
-  }
-
-  @override
-  void dispose() {
-    _loadController.dispose();
-    _waveController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Center(
-      child: Column(
-        children: [
-          Text(
-            'TODAY',
-            style: theme.textTheme.labelMedium?.copyWith(
-              letterSpacing: 2,
-              color: colorScheme.onSurface.withValues(alpha: 0.5),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          SizedBox(
-            width: 220,
-            height: 220,
-            child: AnimatedBuilder(
-              animation: Listenable.merge([
-                _fillAnimation,
-                _waveController,
-              ]),
-              builder: (context, child) {
-                return CustomPaint(
-                  painter: _WaterCirclePainter(
-                    fillLevel: _fillAnimation.value,
-                    wavePhase: _waveController.value * 2 * math.pi,
-                    fillColor: colorScheme.primary,
-                    trackColor: colorScheme.onSurface.withValues(
-                      alpha: 0.06,
-                    ),
-                    borderColor: colorScheme.onSurface.withValues(
-                      alpha: 0.08,
-                    ),
-                  ),
-                  child: child,
-                );
-              },
-              child: Center(
-                child: widget.isLoading
-                    ? const CircularProgressIndicator()
-                    : Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.water_drop_rounded,
-                            color: colorScheme.primary,
-                            size: 28,
-                          ),
-                          const SizedBox(height: 6),
-
-                          AnimatedBuilder(
-                            animation: _fillAnimation,
-                            builder: (context, _) {
-                              final shownMl =
-                                  (widget.dailyGoal *
-                                          _fillAnimation.value)
-                                      .round();
-
-                              return Text(
-                                '$shownMl ml',
-                                style: theme.textTheme.headlineMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              );
-                            },
-                          ),
-
-                          Text(
-                            '/ ${widget.dailyGoal} ml',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colorScheme.onSurface.withValues(
-                                alpha: 0.55,
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 8),
-
-                          AnimatedBuilder(
-                            animation: _fillAnimation,
-                            builder: (context, _) {
-                              return Text(
-                                '${(_fillAnimation.value * 100).round()}%',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  color: colorScheme.primary,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _WaterCirclePainter extends CustomPainter {
-  const _WaterCirclePainter({
-    required this.fillLevel,
-    required this.wavePhase,
-    required this.fillColor,
-    required this.trackColor,
-    required this.borderColor,
-  });
-
-  final double fillLevel;
-  final double wavePhase;
-  final Color fillColor;
-  final Color trackColor;
-  final Color borderColor;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final radius = math.min(size.width, size.height) / 2;
-
-    final circleRect = Rect.fromCircle(
-      center: center,
-      radius: radius - 2,
-    );
-
-    final trackPaint = Paint()
-      ..color = trackColor
-      ..style = PaintingStyle.fill;
-
-    canvas.drawCircle(center, radius, trackPaint);
-
-    canvas.save();
-
-    final clipPath = Path()
-      ..addOval(circleRect);
-
-    canvas.clipPath(clipPath);
-
-    final waterTop = size.height * (1 - fillLevel);
-
-    final waveHeight = 5.0;
-    final waveLength = size.width / 1.5;
-
-    final path = Path()
-      ..moveTo(0, waterTop);
-
-    for (double x = 0; x <= size.width; x += 2) {
-      final y = waterTop +
-          math.sin(
-                (x / waveLength * 2 * math.pi) + wavePhase,
-              ) *
-              waveHeight;
-
-      path.lineTo(x, y);
-    }
-
-    path
-      ..lineTo(size.width, size.height)
-      ..lineTo(0, size.height)
-      ..close();
-
-    final fillPaint = Paint()
-      ..color = fillColor.withValues(alpha: 0.18)
-      ..style = PaintingStyle.fill;
-
-    canvas.drawPath(path, fillPaint);
-
-    canvas.restore();
-
-    final borderPaint = Paint()
-      ..color = borderColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-
-    canvas.drawCircle(
-      center,
-      radius - 1,
-      borderPaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _WaterCirclePainter oldDelegate) {
-    return oldDelegate.fillLevel != fillLevel ||
-        oldDelegate.wavePhase != wavePhase ||
-        oldDelegate.fillColor != fillColor ||
-        oldDelegate.trackColor != trackColor ||
-        oldDelegate.borderColor != borderColor;
   }
 }
 
 class _EmptyGoalState extends StatelessWidget {
-  const _EmptyGoalState({
-    required this.onRetry,
-  });
+  const _EmptyGoalState({required this.onRetry});
 
   final VoidCallback onRetry;
 
@@ -775,10 +455,7 @@ class _EmptyGoalState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            OutlinedButton(
-              onPressed: onRetry,
-              child: const Text('Try again'),
-            ),
+            OutlinedButton(onPressed: onRetry, child: const Text('Try again')),
           ],
         ),
       ),
