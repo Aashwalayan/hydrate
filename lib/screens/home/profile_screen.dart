@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../profile/appearance_screen.dart';
+import '../profile/about_screen.dart';
+import '../profile/account_screen.dart';
 
 import '../../services//auth_service.dart';
 import '../../services/hydration_service.dart';
@@ -113,7 +115,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
         icon: Icons.local_drink_outlined,
         label: 'Hydration Goal',
       ),
-      ProfileOptionData(icon: Icons.person_outline_rounded, label: 'Account'),
+      ProfileOptionData(
+        icon: Icons.person_outline_rounded,
+        label: 'Account',
+        onTap: () async {
+          final authService = AuthService();
+
+          final name = await authService.getUserName();
+          final email = await authService.getUserEmail();
+
+          if (!context.mounted) return;
+
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => AccountScreen(
+                initialName: name ?? 'User',
+                email: email ?? 'No email',
+
+                onNameChanged: (newName) async {
+                  final result = await authService.updateName(newName);
+
+                  if (!result.success) {
+                    throw Exception(result.message);
+                  }
+                },
+
+                onChangePassword: (currentPassword, newPassword) async {
+                  final result = await authService.changePassword(
+                    currentPassword: currentPassword,
+                    newPassword: newPassword,
+                  );
+
+                  if (!result.success) {
+                    throw Exception(result.message);
+                  }
+                },
+
+                onDeleteAccount: () async {
+                  final result = await authService.deleteAccount();
+
+                  if (!result.success) {
+                    throw Exception(result.message);
+                  }
+
+                  if (!context.mounted) return;
+
+                  Navigator.of(
+                    context,
+                  ).pushNamedAndRemoveUntil('/', (route) => false);
+                },
+              ),
+            ),
+          );
+        },
+      ),
     ];
 
     return Scaffold(
@@ -153,6 +208,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ProfileOptionData(
                         icon: Icons.info_outline_rounded,
                         label: 'About Hydrate',
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const AboutScreen(),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),

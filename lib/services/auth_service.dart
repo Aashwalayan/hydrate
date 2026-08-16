@@ -77,8 +77,14 @@ class AuthService {
 
         final user = data['user'];
 
-        if (user != null && user['name'] != null) {
-          await _saveUserName(user['name']);
+        if (user != null) {
+          if (user['name'] != null) {
+            await _saveUserName(user['name']);
+          }
+
+          if (user['email'] != null) {
+            await _saveUserEmail(user['email']);
+          }
         }
 
         return AuthResponse(
@@ -149,8 +155,14 @@ class AuthService {
 
         final user = data['user'];
 
-        if (user != null && user['name'] != null) {
-          await _saveUserName(user['name']);
+        if (user != null) {
+          if (user['name'] != null) {
+            await _saveUserName(user['name']);
+          }
+
+          if (user['email'] != null) {
+            await _saveUserEmail(user['email']);
+          }
         }
 
         return AuthResponse(
@@ -244,5 +256,120 @@ class AuthService {
         message: 'Unable to connect to the server.',
       );
     }
+  }
+
+  Future<AuthResponse> updateName(String name) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      final response = await http.put(
+        Uri.parse('$baseUrl/me'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'name': name}),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        await _saveUserName(name);
+
+        return AuthResponse(
+          success: true,
+          message: data['message'] ?? 'Name updated successfully.',
+        );
+      }
+
+      return AuthResponse(
+        success: false,
+        message: data['message'] ?? 'Failed to update name.',
+      );
+    } catch (e) {
+      return const AuthResponse(
+        success: false,
+        message: 'Unable to connect to the server.',
+      );
+    }
+  }
+
+  Future<AuthResponse> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/change-password'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'currentPassword': currentPassword,
+          'newPassword': newPassword,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+
+      return AuthResponse(
+        success: response.statusCode == 200,
+        message: data['message'] ?? 'Failed to change password.',
+      );
+    } catch (e) {
+      return const AuthResponse(
+        success: false,
+        message: 'Unable to connect to the server.',
+      );
+    }
+  }
+
+  Future<AuthResponse> deleteAccount() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      final response = await http.delete(
+        Uri.parse('$baseUrl/me'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        await prefs.remove('auth_token');
+        await prefs.remove('user_name');
+
+        return AuthResponse(
+          success: true,
+          message: data['message'] ?? 'Account deleted successfully.',
+        );
+      }
+
+      return AuthResponse(
+        success: false,
+        message: data['message'] ?? 'Failed to delete account.',
+      );
+    } catch (e) {
+      return const AuthResponse(
+        success: false,
+        message: 'Unable to connect to the server.',
+      );
+    }
+  }
+
+  Future<void> _saveUserEmail(String email) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_email', email);
+  }
+
+  Future<String?> getUserEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('user_email');
   }
 }
