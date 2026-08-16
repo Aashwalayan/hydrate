@@ -23,6 +23,6 @@ router.get("/history", authMiddleware, getHistory);
 
 router.post("/water", authMiddleware, addWater);
 
-router.patch('/goal')
+router.patch('/goal', authMiddleware, updateGoal);
 
 module.exports = router;
