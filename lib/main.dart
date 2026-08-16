@@ -8,10 +8,12 @@ import 'screens/splash/splash_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'theme/hydrate_theme.dart';
 
-final GlobalKey<NavigatorState> navigatorKey =
-    GlobalKey<NavigatorState>();
+import 'services/notification_service.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const HydrateApp());
 }
 
@@ -29,6 +31,19 @@ class _HydrateAppState extends State<HydrateApp> {
   void initState() {
     super.initState();
     _loadThemeSettings();
+    _initializeNotifications();
+  }
+
+  Future<void> _initializeNotifications() async {
+    print('NOTIFICATION: starting initialization');
+
+    await NotificationService.instance.initialize();
+
+    print('NOTIFICATION: initialization complete');
+
+    await NotificationService.instance.testNotification();
+
+    print('NOTIFICATION: test scheduled');
   }
 
   Future<void> _loadThemeSettings() async {
@@ -69,11 +84,7 @@ class _HydrateAppState extends State<HydrateApp> {
 
     if (controller == null) {
       return const MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: CircularProgressIndicator(),
-          ),
-        ),
+        home: Scaffold(body: Center(child: CircularProgressIndicator())),
       );
     }
 
