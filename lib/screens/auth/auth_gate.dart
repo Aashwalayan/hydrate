@@ -26,6 +26,7 @@ class _AuthGateState extends State<AuthGate> {
   Future<Widget> _getInitialScreen() async {
     final hasSession = await _authService.hasValidSession();
 
+
     if (!hasSession) {
       return WelcomeScreen(
         onGetStarted: () {

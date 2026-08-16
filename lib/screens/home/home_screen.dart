@@ -668,6 +668,35 @@ class _AddWaterSheetState extends State<_AddWaterSheet> {
 
   int? _selectedAmount = 250;
 
+  late final TextEditingController _amountController;
+
+  @override
+  void initState() {
+    super.initState();
+    _amountController = TextEditingController(text: '250');
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  void _selectPreset(int amount) {
+    setState(() {
+      _selectedAmount = amount;
+      _amountController.text = amount.toString();
+    });
+  }
+
+  void _handleCustomAmountChanged(String value) {
+    final amount = int.tryParse(value);
+
+    setState(() {
+      _selectedAmount = amount;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -681,7 +710,9 @@ class _AddWaterSheetState extends State<_AddWaterSheet> {
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
         decoration: BoxDecoration(
           color: colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(28),
+          ),
           border: Border(
             top: BorderSide(
               color: colorScheme.onSurface.withValues(alpha: 0.08),
@@ -713,21 +744,70 @@ class _AddWaterSheetState extends State<_AddWaterSheet> {
 
             const SizedBox(height: 20),
 
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
+            // Quick presets
+            Row(
               children: [
-                for (final amount in _quickAmounts)
-                  _AmountChip(
-                    label: '$amount ml',
-                    selected: _selectedAmount == amount,
-                    onTap: () {
-                      setState(() {
-                        _selectedAmount = amount;
-                      });
-                    },
+                for (int i = 0; i < _quickAmounts.length; i++) ...[
+                  Expanded(
+                    child: _AmountChip(
+                      label: '${_quickAmounts[i]} ml',
+                      selected: _selectedAmount == _quickAmounts[i],
+                      onTap: () => _selectPreset(_quickAmounts[i]),
+                    ),
                   ),
+                  if (i != _quickAmounts.length - 1)
+                    const SizedBox(width: 8),
+                ],
               ],
+            ),
+
+            const SizedBox(height: 20),
+
+            // Custom amount
+            Text(
+              'Custom amount',
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            TextField(
+              controller: _amountController,
+              keyboardType: TextInputType.number,
+              onChanged: _handleCustomAmountChanged,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Enter amount',
+                suffixText: 'ml',
+                filled: true,
+                fillColor: colorScheme.onSurface.withValues(alpha: 0.05),
+                prefixIcon: Icon(
+                  Icons.water_drop_outlined,
+                  color: colorScheme.primary,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: colorScheme.onSurface.withValues(alpha: 0.08),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(
+                    color: colorScheme.primary,
+                    width: 1.5,
+                  ),
+                ),
+              ),
             ),
 
             const SizedBox(height: 24),
@@ -743,7 +823,7 @@ class _AddWaterSheetState extends State<_AddWaterSheet> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: _selectedAmount == null
+                onPressed: _selectedAmount == null || _selectedAmount! <= 0
                     ? null
                     : () {
                         Navigator.of(context).pop(_selectedAmount);

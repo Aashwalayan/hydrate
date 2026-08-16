@@ -4,10 +4,11 @@ import '../../services/auth_service.dart';
 import '../../widgets/auth_scaffold.dart';
 import '../../widgets/auth_text_field.dart';
 import '../../widgets/primary_button.dart';
-import '../home/home_screen.dart';
+import '../home/main_screen.dart';
 import 'forgot_password_screen.dart';
 import 'signup_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.authService});
@@ -63,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await prefs.setString('auth_token', response.token!);
 
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
+        MaterialPageRoute<void>(builder: (_) => const MainScreen()),
       );
     }
   }

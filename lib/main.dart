@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import 'screens/auth/signup_screen.dart';
-import 'screens/onboarding/welcome_screen.dart';
-import 'services/auth_service.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_controller.dart';
 import 'theme/theme_provider.dart';
-import 'screens/auth/auth_gate.dart'; 
+import 'screens/splash/splash_screen.dart';
+
+import 'package:shared_preferences/shared_preferences.dart';
+import 'theme/hydrate_theme.dart';
 
 final GlobalKey<NavigatorState> navigatorKey =
     GlobalKey<NavigatorState>();
@@ -23,40 +23,74 @@ class HydrateApp extends StatefulWidget {
 }
 
 class _HydrateAppState extends State<HydrateApp> {
-  final ThemeController _themeController =
-      ThemeController();
+  ThemeController? _themeController;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadThemeSettings();
+  }
+
+  Future<void> _loadThemeSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final storedThemeMode = prefs.getString('theme_mode');
+    final storedTheme = prefs.getString('hydrate_theme');
+
+    final themeMode = ThemeMode.values.firstWhere(
+      (mode) => mode.name == storedThemeMode,
+      orElse: () => ThemeMode.system,
+    );
+
+    final hydrateTheme = HydrateTheme.values.firstWhere(
+      (theme) => theme.name == storedTheme,
+      orElse: () => HydrateTheme.calm,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _themeController = ThemeController(
+        themeMode: themeMode,
+        hydrateTheme: hydrateTheme,
+      );
+    });
+  }
 
   @override
   void dispose() {
-    _themeController.dispose();
+    _themeController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final controller = _themeController;
+
+    if (controller == null) {
+      return const MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
+
     return ListenableBuilder(
-  listenable: _themeController,
-  builder: (context, child) {
-    return ThemeControllerProvider(
-      controller: _themeController,
-      child: MaterialApp(
-          title: 'Hydrate',
-          debugShowCheckedModeBanner: false,
-
-          navigatorKey: navigatorKey,
-
-          themeMode: _themeController.themeMode,
-
-          theme: AppTheme.lightTheme(
-            _themeController.hydrateTheme,
+      listenable: controller,
+      builder: (context, child) {
+        return ThemeControllerProvider(
+          controller: controller,
+          child: MaterialApp(
+            title: 'Hydrate',
+            debugShowCheckedModeBanner: false,
+            navigatorKey: navigatorKey,
+            themeMode: controller.themeMode,
+            theme: AppTheme.lightTheme(controller.hydrateTheme),
+            darkTheme: AppTheme.darkTheme(controller.hydrateTheme),
+            home: const SplashScreen(),
           ),
-
-          darkTheme: AppTheme.darkTheme(
-            _themeController.hydrateTheme,
-          ),
-
-          home: AuthGate(),
-      )
         );
       },
     );

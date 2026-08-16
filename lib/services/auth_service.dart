@@ -53,7 +53,6 @@ class AuthService {
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');
-    await prefs.remove('onboarding_complete');
   }
 
   Future<AuthResponse> login({

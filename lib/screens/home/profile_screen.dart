@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../profile/appearance_screen.dart';
+
+import '../../services//auth_service.dart';
+import '../../services/hydration_service.dart';
+
 /// Mock model for a single tappable profile option row.
 class ProfileOptionData {
   const ProfileOptionData({
@@ -16,12 +21,74 @@ class ProfileOptionData {
 /// Profile screen — houses identity plus all app settings/preferences.
 /// There is intentionally no separate Settings tab; everything
 /// configuration-related lives here.
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
-  // --- Mock data. Replace with real user/account state later. -------------
-  static const String _userName = 'Aashwalayan';
-  static const double _hydrationGoalLiters = 2.5;
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  String _userName = 'User';
+
+  DailyHydration? _today;
+  bool _isLoadingGoal = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserName();
+    _loadHydrationGoal();
+  }
+
+  Future<void> _loadUserName() async {
+    final fullName = await AuthService().getUserName();
+
+    if (!mounted) return;
+
+    final firstName = fullName?.trim().split(' ').first;
+
+    setState(() {
+      _userName = (firstName == null || firstName.isEmpty) ? 'User' : firstName;
+    });
+  }
+
+  Future<void> _loadHydrationGoal() async {
+    final service = HydrationService();
+
+    // Show cached data immediately.
+    final cachedToday = await service.getCachedToday();
+
+    if (cachedToday != null && mounted) {
+      setState(() {
+        _today = cachedToday;
+        _isLoadingGoal = false;
+      });
+    }
+
+    // Refresh in the background.
+    try {
+      final today = await service.getToday();
+
+      if (!mounted) return;
+
+      setState(() {
+        _today = today;
+        _isLoadingGoal = false;
+      });
+    } catch (e) {
+      debugPrint('Profile hydration loading error: $e');
+
+      if (!mounted) return;
+
+      // Keep cached data if backend isn't available.
+      if (cachedToday != null) return;
+
+      setState(() {
+        _isLoadingGoal = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +96,15 @@ class ProfileScreen extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     final personalizationOptions = [
-      ProfileOptionData(icon: Icons.palette_outlined, label: 'Appearance'),
+      ProfileOptionData(
+        icon: Icons.palette_outlined,
+        label: 'Appearance',
+        onTap: () {
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const AppearanceScreen()));
+        },
+      ),
       ProfileOptionData(
         icon: Icons.notifications_outlined,
         label: 'Notifications',
@@ -57,10 +132,15 @@ class ProfileScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 28),
-                  const _ProfileHeader(
+
+                  _ProfileHeader(
                     userName: _userName,
-                    hydrationGoalLiters: _hydrationGoalLiters,
+                    hydrationGoalLiters: _today?.goalMl != null
+                        ? _today!.goalMl / 1000
+                        : 0,
+                    isLoadingGoal: _isLoadingGoal,
                   ),
+
                   const SizedBox(height: 32),
                   _ProfileSection(
                     title: 'Personalization',
@@ -77,7 +157,43 @@ class ProfileScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  _LogOutButton(onTap: () {}),
+                  _LogOutButton(
+                    onTap: () async {
+                      final shouldLogout = await showDialog<bool>(
+                        context: context,
+                        builder: (context) {
+                          return AlertDialog(
+                            title: const Text('Log out?'),
+                            content: const Text(
+                              'You will need to sign in again to access your Hydrate account.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.of(context).pop(false),
+                                child: const Text('Cancel'),
+                              ),
+                              FilledButton(
+                                onPressed: () =>
+                                    Navigator.of(context).pop(true),
+                                child: const Text('Log out'),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+
+                      if (shouldLogout != true) return;
+
+                      await AuthService().logout();
+
+                      if (!context.mounted) return;
+
+                      Navigator.of(
+                        context,
+                      ).pushNamedAndRemoveUntil('/', (route) => false);
+                    },
+                  ),
                 ]),
               ),
             ),
@@ -92,10 +208,12 @@ class _ProfileHeader extends StatelessWidget {
   const _ProfileHeader({
     required this.userName,
     required this.hydrationGoalLiters,
+    required this.isLoadingGoal,
   });
 
   final String userName;
   final double hydrationGoalLiters;
+  final bool isLoadingGoal;
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +258,9 @@ class _ProfileHeader extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'Hydration goal · ${hydrationGoalLiters.toStringAsFixed(1)} L',
+                  isLoadingGoal
+                      ? 'Hydration goal · Loading...'
+                      : 'Hydration goal · ${hydrationGoalLiters.toStringAsFixed(1)} L',
                   style: theme.textTheme.bodySmall?.copyWith(
                     fontWeight: FontWeight.w600,
                     color: colorScheme.onSurface.withValues(alpha: 0.75),
@@ -274,11 +394,7 @@ class _LogOutButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.logout_rounded,
-                size: 18,
-                color: colorScheme.error,
-              ),
+              Icon(Icons.logout_rounded, size: 18, color: colorScheme.error),
               const SizedBox(width: 8),
               Text(
                 'Log out',
