@@ -75,7 +75,7 @@ const addWater = async (req, res) => {
     try{
         const {amountMl, date} = req.body;
 
-        if (!amountMl || !date <= 0) {
+        if (!amountMl || amountMl <= 0) {
             return res.status(400).json({
                 message: "Invalid water intake amount is required"
             });
@@ -123,9 +123,11 @@ const addWater = async (req, res) => {
 
         daily.completionPercent = Math.round((daily.intakeMl / daily.goalMl) * 100);
 
+        daily.level = getLevel(daily.completionPercent);
+
         await daily.save();
 
-        res.status(200).json({
+        res.status(201).json({
             message: "Water intake added successfully",
             daily
         });

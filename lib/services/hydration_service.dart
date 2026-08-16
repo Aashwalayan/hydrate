@@ -4,20 +4,14 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HydrationResponse {
-  const HydrationResponse({
-    required this.success,
-    required this.message,
-  });
+  const HydrationResponse({required this.success, required this.message});
 
   final bool success;
   final String message;
 }
 
 class HydrationEntry {
-  const HydrationEntry({
-    required this.amountMl,
-    required this.timestamp,
-  });
+  const HydrationEntry({required this.amountMl, required this.timestamp});
 
   final int amountMl;
   final DateTime timestamp;
@@ -58,12 +52,28 @@ class DailyHydration {
       level: (json['level'] as num).toInt(),
       entries: entriesJson
           .map(
-            (entry) => HydrationEntry.fromJson(
-              entry as Map<String, dynamic>,
-            ),
+            (entry) => HydrationEntry.fromJson(entry as Map<String, dynamic>),
           )
           .toList(),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'date': date,
+      'goalMl': goalMl,
+      'intakeMl': intakeMl,
+      'completionPercent': completionPercent,
+      'level': level,
+      'entries': entries
+          .map(
+            (entry) => {
+              'amountMl': entry.amountMl,
+              'timestamp': entry.timestamp.toIso8601String(),
+            },
+          )
+          .toList(),
+    };
   }
 }
 
@@ -71,9 +81,29 @@ class HydrationService {
   static const String baseUrl =
       'https://hydrate-vor8.onrender.com/api/hydration';
 
-  // -------------------------------------------------------------------------
-  // Authentication
-  // -------------------------------------------------------------------------
+  static const String _todayCacheKey = 'hydration_today';
+
+  Future<void> _cacheToday(DailyHydration today) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString(_todayCacheKey, jsonEncode(today.toJson()));
+  }
+
+  Future<DailyHydration?> _getCachedToday() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final cached = prefs.getString(_todayCacheKey);
+
+    if (cached == null) return null;
+
+    try {
+      return DailyHydration.fromJson(
+        jsonDecode(cached) as Map<String, dynamic>,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<Map<String, String>?> _authHeaders() async {
     final prefs = await SharedPreferences.getInstance();
@@ -89,10 +119,6 @@ class HydrationService {
     };
   }
 
-  // -------------------------------------------------------------------------
-  // Date
-  // -------------------------------------------------------------------------
-
   String _localDate() {
     final now = DateTime.now();
 
@@ -100,10 +126,6 @@ class HydrationService {
         '${now.month.toString().padLeft(2, '0')}-'
         '${now.day.toString().padLeft(2, '0')}';
   }
-
-  // -------------------------------------------------------------------------
-  // Hydration Settings
-  // -------------------------------------------------------------------------
 
   Future<HydrationResponse> saveSettings({
     required int dailyGoalMl,
@@ -150,9 +172,17 @@ class HydrationService {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Get Today's Hydration
-  // -------------------------------------------------------------------------
+  Future<DailyHydration?> getCachedToday() async {
+    final cached = await _getCachedToday();
+
+    if (cached == null) return null;
+
+    if (cached.date != _localDate()) {
+      return null;
+    }
+
+    return cached;
+  }
 
   Future<DailyHydration> getToday() async {
     final headers = await _authHeaders();
@@ -169,17 +199,15 @@ class HydrationService {
     final data = jsonDecode(response.body);
 
     if (response.statusCode != 200) {
-      throw Exception(
-        data['message'] ?? 'Failed to load today\'s hydration.',
-      );
+      throw Exception(data['message'] ?? 'Failed to load today\'s hydration.');
     }
 
-    return DailyHydration.fromJson(data);
-  }
+    final today = DailyHydration.fromJson(data);
 
-  // -------------------------------------------------------------------------
-  // Add Water
-  // -------------------------------------------------------------------------
+    await _cacheToday(today);
+
+    return today;
+  }
 
   Future<DailyHydration> addWater(int amountMl) async {
     final headers = await _authHeaders();
@@ -191,28 +219,23 @@ class HydrationService {
     final response = await http.post(
       Uri.parse('$baseUrl/water'),
       headers: headers,
-      body: jsonEncode({
-        'amountMl': amountMl,
-        'date': _localDate(),
-      }),
+      body: jsonEncode({'amountMl': amountMl, 'date': _localDate()}),
     );
 
     final data = jsonDecode(response.body);
 
     if (response.statusCode != 201) {
-      throw Exception(
-        data['message'] ?? 'Failed to add water.',
-      );
+      throw Exception(data['message'] ?? 'Failed to add water.');
     }
 
-    return DailyHydration.fromJson(
+    final today = DailyHydration.fromJson(
       data['daily'] as Map<String, dynamic>,
     );
-  }
 
-  // -------------------------------------------------------------------------
-  // Get Hydration History
-  // -------------------------------------------------------------------------
+    await _cacheToday(today);
+
+    return today;
+  }
 
   Future<List<DailyHydration>> getHistory() async {
     final headers = await _authHeaders();
@@ -229,17 +252,11 @@ class HydrationService {
     final data = jsonDecode(response.body);
 
     if (response.statusCode != 200) {
-      throw Exception(
-        data['message'] ?? 'Failed to load hydration history.',
-      );
+      throw Exception(data['message'] ?? 'Failed to load hydration history.');
     }
 
     return (data as List<dynamic>)
-        .map(
-          (day) => DailyHydration.fromJson(
-            day as Map<String, dynamic>,
-          ),
-        )
+        .map((day) => DailyHydration.fromJson(day as Map<String, dynamic>))
         .toList();
   }
 }

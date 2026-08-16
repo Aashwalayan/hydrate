@@ -83,14 +83,23 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Good evening';
   }
 
-  // -------------------------------------------------------------------------
-  // Hydration
-  // -------------------------------------------------------------------------
 
   Future<void> _loadHydrationData() async {
-    try {
-      final service = HydrationService();
+    final service = HydrationService();
 
+    // 1. Load cached data immediately.
+    final cachedToday = await service.getCachedToday();
+
+    if (cachedToday != null && mounted) {
+      setState(() {
+        _today = cachedToday;
+        _isLoading = false;
+        _errorMessage = null;
+      });
+    }
+
+    // 2. Fetch fresh data from the backend.
+    try {
       final today = await service.getToday();
 
       if (!mounted) return;
@@ -105,6 +114,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (!mounted) return;
 
+      // If we already have cached data, don't show an error.
+      if (cachedToday != null) {
+        return;
+      }
+
+      // No cache + backend unavailable.
       setState(() {
         _isLoading = false;
         _errorMessage = 'Unable to load hydration data.';
@@ -140,9 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not add water. Please try again.'),
-        ),
+        const SnackBar(content: Text('Could not add water. Please try again.')),
       );
     }
   }
@@ -162,47 +175,36 @@ class _HomeScreenState extends State<HomeScreen> {
     await _addWater(amount);
   }
 
-  // -------------------------------------------------------------------------
-  // Reminder - temporary mock
-  // -------------------------------------------------------------------------
 
   void _startCountdown() {
     _countdownTimer?.cancel();
 
-    _countdownTimer = Timer.periodic(
-      const Duration(seconds: 1),
-      (timer) {
-        if (!mounted) return;
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
 
-        setState(() {
-          if (_reminderSecondsRemaining <= 0) {
-            _reminderSecondsRemaining =
-                _mockReminderInterval.inSeconds;
-          } else {
-            _reminderSecondsRemaining -= 1;
-          }
-        });
-      },
-    );
+      setState(() {
+        if (_reminderSecondsRemaining <= 0) {
+          _reminderSecondsRemaining = _mockReminderInterval.inSeconds;
+        } else {
+          _reminderSecondsRemaining -= 1;
+        }
+      });
+    });
   }
 
   void _handleSkip() {
     setState(() {
       _justSkipped = true;
-      _reminderSecondsRemaining =
-          _mockReminderInterval.inSeconds;
+      _reminderSecondsRemaining = _mockReminderInterval.inSeconds;
     });
 
-    Future.delayed(
-      const Duration(milliseconds: 900),
-      () {
-        if (mounted) {
-          setState(() {
-            _justSkipped = false;
-          });
-        }
-      },
-    );
+    Future.delayed(const Duration(milliseconds: 900), () {
+      if (mounted) {
+        setState(() {
+          _justSkipped = false;
+        });
+      }
+    });
   }
 
   @override
@@ -211,9 +213,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // -------------------------------------------------------------------------
-  // Build
-  // -------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -228,18 +227,10 @@ class _HomeScreenState extends State<HomeScreen> {
         child: CustomScrollView(
           slivers: [
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(
-                20,
-                12,
-                20,
-                120,
-              ),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  _Greeting(
-                    userName: _userName,
-                    greeting: _greeting,
-                  ),
+                  _Greeting(userName: _userName, greeting: _greeting),
 
                   const SizedBox(height: 28),
 
@@ -265,10 +256,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 24),
 
                   _NextReminderCard(
-                    secondsRemaining:
-                        _reminderSecondsRemaining,
-                    totalSeconds:
-                        _mockReminderInterval.inSeconds,
+                    secondsRemaining: _reminderSecondsRemaining,
+                    totalSeconds: _mockReminderInterval.inSeconds,
                     justSkipped: _justSkipped,
                     onSkip: _handleSkip,
                   ),
@@ -289,15 +278,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Greeting
-// ---------------------------------------------------------------------------
-
 class _Greeting extends StatelessWidget {
-  const _Greeting({
-    required this.userName,
-    required this.greeting,
-  });
+  const _Greeting({required this.userName, required this.greeting});
 
   final String userName;
   final String greeting;
@@ -319,9 +301,7 @@ class _Greeting extends StatelessWidget {
         Text(
           "Let's stay hydrated today",
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(
-              alpha: 0.6,
-            ),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
           ),
         ),
       ],
@@ -329,15 +309,9 @@ class _Greeting extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Error card
-// ---------------------------------------------------------------------------
 
 class _ErrorCard extends StatelessWidget {
-  const _ErrorCard({
-    required this.message,
-    required this.onRetry,
-  });
+  const _ErrorCard({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;
@@ -356,10 +330,7 @@ class _ErrorCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.cloud_off_rounded,
-            color: colorScheme.onErrorContainer,
-          ),
+          Icon(Icons.cloud_off_rounded, color: colorScheme.onErrorContainer),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -369,19 +340,13 @@ class _ErrorCard extends StatelessWidget {
               ),
             ),
           ),
-          TextButton(
-            onPressed: onRetry,
-            child: const Text('Retry'),
-          ),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
         ],
       ),
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Hydration progress
-// ---------------------------------------------------------------------------
 
 class _HydrationProgress extends StatefulWidget {
   const _HydrationProgress({
@@ -395,8 +360,7 @@ class _HydrationProgress extends StatefulWidget {
   final bool isLoading;
 
   @override
-  State<_HydrationProgress> createState() =>
-      _HydrationProgressState();
+  State<_HydrationProgress> createState() => _HydrationProgressState();
 }
 
 class _HydrationProgressState extends State<_HydrationProgress>
@@ -408,8 +372,7 @@ class _HydrationProgressState extends State<_HydrationProgress>
   double get _progress {
     if (widget.dailyGoal <= 0) return 0;
 
-    return (widget.currentIntake / widget.dailyGoal)
-        .clamp(0.0, 1.0);
+    return (widget.currentIntake / widget.dailyGoal).clamp(0.0, 1.0);
   }
 
   @override
@@ -421,14 +384,8 @@ class _HydrationProgressState extends State<_HydrationProgress>
       duration: const Duration(milliseconds: 900),
     );
 
-    _fillAnimation = Tween<double>(
-      begin: 0,
-      end: _progress,
-    ).animate(
-      CurvedAnimation(
-        parent: _loadController,
-        curve: Curves.easeOutCubic,
-      ),
+    _fillAnimation = Tween<double>(begin: 0, end: _progress).animate(
+      CurvedAnimation(parent: _loadController, curve: Curves.easeOutCubic),
     );
 
     _waveController = AnimationController(
@@ -440,23 +397,15 @@ class _HydrationProgressState extends State<_HydrationProgress>
   }
 
   @override
-  void didUpdateWidget(
-    covariant _HydrationProgress oldWidget,
-  ) {
+  void didUpdateWidget(covariant _HydrationProgress oldWidget) {
     super.didUpdateWidget(oldWidget);
 
     if (oldWidget.currentIntake != widget.currentIntake ||
         oldWidget.dailyGoal != widget.dailyGoal) {
       final begin = _fillAnimation.value;
 
-      _fillAnimation = Tween<double>(
-        begin: begin,
-        end: _progress,
-      ).animate(
-        CurvedAnimation(
-          parent: _loadController,
-          curve: Curves.easeOutCubic,
-        ),
+      _fillAnimation = Tween<double>(begin: begin, end: _progress).animate(
+        CurvedAnimation(parent: _loadController, curve: Curves.easeOutCubic),
       );
 
       _loadController
@@ -484,9 +433,7 @@ class _HydrationProgressState extends State<_HydrationProgress>
             'TODAY',
             style: theme.textTheme.labelMedium?.copyWith(
               letterSpacing: 2,
-              color: colorScheme.onSurface.withValues(
-                alpha: 0.5,
-              ),
+              color: colorScheme.onSurface.withValues(alpha: 0.5),
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -497,25 +444,15 @@ class _HydrationProgressState extends State<_HydrationProgress>
             width: 220,
             height: 220,
             child: AnimatedBuilder(
-              animation: Listenable.merge([
-                _fillAnimation,
-                _waveController,
-              ]),
+              animation: Listenable.merge([_fillAnimation, _waveController]),
               builder: (context, child) {
                 return CustomPaint(
                   painter: _WaterCirclePainter(
                     fillLevel: _fillAnimation.value,
-                    wavePhase:
-                        _waveController.value * 2 * math.pi,
+                    wavePhase: _waveController.value * 2 * math.pi,
                     fillColor: colorScheme.primary,
-                    trackColor:
-                        colorScheme.onSurface.withValues(
-                      alpha: 0.06,
-                    ),
-                    borderColor:
-                        colorScheme.onSurface.withValues(
-                      alpha: 0.08,
-                    ),
+                    trackColor: colorScheme.onSurface.withValues(alpha: 0.06),
+                    borderColor: colorScheme.onSurface.withValues(alpha: 0.08),
                   ),
                   child: child,
                 );
@@ -537,29 +474,24 @@ class _HydrationProgressState extends State<_HydrationProgress>
                             animation: _fillAnimation,
                             builder: (context, _) {
                               final shownMl =
-                                  (widget.dailyGoal *
-                                          _fillAnimation.value)
+                                  (widget.dailyGoal * _fillAnimation.value)
                                       .round();
 
                               return Text(
                                 '$shownMl ml',
-                                style: theme
-                                    .textTheme
-                                    .headlineMedium
-                                    ?.copyWith(
-                                      fontWeight:
-                                          FontWeight.w700,
-                                    ),
+                                style: theme.textTheme.headlineMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
                               );
                             },
                           ),
 
                           Text(
                             '/ ${widget.dailyGoal} ml',
-                            style: theme.textTheme.bodyMedium
-                                ?.copyWith(
-                              color: colorScheme.onSurface
-                                  .withValues(alpha: 0.55),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurface.withValues(
+                                alpha: 0.55,
+                              ),
                             ),
                           ),
 
@@ -570,8 +502,7 @@ class _HydrationProgressState extends State<_HydrationProgress>
                             builder: (context, _) {
                               return Text(
                                 '${(_fillAnimation.value * 100).round()}%',
-                                style: theme.textTheme.titleMedium
-                                    ?.copyWith(
+                                style: theme.textTheme.titleMedium?.copyWith(
                                   color: colorScheme.primary,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -589,9 +520,6 @@ class _HydrationProgressState extends State<_HydrationProgress>
   }
 }
 
-// ---------------------------------------------------------------------------
-// Water circle painter
-// ---------------------------------------------------------------------------
 
 class _WaterCirclePainter extends CustomPainter {
   _WaterCirclePainter({
@@ -610,35 +538,21 @@ class _WaterCirclePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(
-      size.width / 2,
-      size.height / 2,
-    );
+    final center = Offset(size.width / 2, size.height / 2);
 
     final radius = size.width / 2;
 
     final trackPaint = Paint()..color = trackColor;
 
-    canvas.drawCircle(
-      center,
-      radius,
-      trackPaint,
-    );
+    canvas.drawCircle(center, radius, trackPaint);
 
     canvas.save();
 
     canvas.clipPath(
-      Path()
-        ..addOval(
-          Rect.fromCircle(
-            center: center,
-            radius: radius,
-          ),
-        ),
+      Path()..addOval(Rect.fromCircle(center: center, radius: radius)),
     );
 
-    final waterHeight =
-        size.height * (1 - fillLevel);
+    final waterHeight = size.height * (1 - fillLevel);
 
     const waveAmplitude = 6.0;
     const waveLength = 90.0;
@@ -648,12 +562,9 @@ class _WaterCirclePainter extends CustomPainter {
       ..lineTo(0, waterHeight);
 
     for (double x = 0; x <= size.width; x++) {
-      final y = waterHeight +
-          waveAmplitude *
-              math.sin(
-                (x / waveLength * 2 * math.pi) +
-                    wavePhase,
-              );
+      final y =
+          waterHeight +
+          waveAmplitude * math.sin((x / waveLength * 2 * math.pi) + wavePhase);
 
       path.lineTo(x, y);
     }
@@ -670,14 +581,7 @@ class _WaterCirclePainter extends CustomPainter {
           fillColor.withValues(alpha: 0.65),
           fillColor.withValues(alpha: 0.85),
         ],
-      ).createShader(
-        Rect.fromLTWH(
-          0,
-          0,
-          size.width,
-          size.height,
-        ),
-      );
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
 
     canvas.drawPath(path, fillPaint);
 
@@ -688,32 +592,20 @@ class _WaterCirclePainter extends CustomPainter {
       ..strokeWidth = 2
       ..color = borderColor;
 
-    canvas.drawCircle(
-      center,
-      radius - 1,
-      borderPaint,
-    );
+    canvas.drawCircle(center, radius - 1, borderPaint);
   }
 
   @override
-  bool shouldRepaint(
-    covariant _WaterCirclePainter oldDelegate,
-  ) {
+  bool shouldRepaint(covariant _WaterCirclePainter oldDelegate) {
     return oldDelegate.fillLevel != fillLevel ||
         oldDelegate.wavePhase != wavePhase ||
         oldDelegate.fillColor != fillColor;
   }
 }
 
-// ---------------------------------------------------------------------------
-// Add Water button
-// ---------------------------------------------------------------------------
 
 class _AddWaterButton extends StatelessWidget {
-  const _AddWaterButton({
-    required this.onTap,
-    required this.isLoading,
-  });
+  const _AddWaterButton({required this.onTap, required this.isLoading});
 
   final VoidCallback onTap;
   final bool isLoading;
@@ -729,14 +621,10 @@ class _AddWaterButton extends StatelessWidget {
       child: InkWell(
         onTap: isLoading ? null : onTap,
         borderRadius: BorderRadius.circular(20),
-        splashColor: colorScheme.onPrimary.withValues(
-          alpha: 0.18,
-        ),
+        splashColor: colorScheme.onPrimary.withValues(alpha: 0.18),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(
-            vertical: 18,
-          ),
+          padding: const EdgeInsets.symmetric(vertical: 18),
           alignment: Alignment.center,
           child: isLoading
               ? SizedBox(
@@ -748,18 +636,13 @@ class _AddWaterButton extends StatelessWidget {
                   ),
                 )
               : Row(
-                  mainAxisAlignment:
-                      MainAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      Icons.add_rounded,
-                      color: colorScheme.onPrimary,
-                    ),
+                    Icon(Icons.add_rounded, color: colorScheme.onPrimary),
                     const SizedBox(width: 8),
                     Text(
                       'Add Water',
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(
+                      style: theme.textTheme.titleMedium?.copyWith(
                         color: colorScheme.onPrimary,
                         fontWeight: FontWeight.w700,
                       ),
@@ -772,25 +655,16 @@ class _AddWaterButton extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Add Water sheet
-// ---------------------------------------------------------------------------
 
 class _AddWaterSheet extends StatefulWidget {
   const _AddWaterSheet();
 
   @override
-  State<_AddWaterSheet> createState() =>
-      _AddWaterSheetState();
+  State<_AddWaterSheet> createState() => _AddWaterSheetState();
 }
 
 class _AddWaterSheetState extends State<_AddWaterSheet> {
-  static const List<int> _quickAmounts = [
-    150,
-    250,
-    350,
-    500,
-  ];
+  static const List<int> _quickAmounts = [150, 250, 350, 500];
 
   int? _selectedAmount = 250;
 
@@ -804,50 +678,35 @@ class _AddWaterSheetState extends State<_AddWaterSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: Container(
-        padding: const EdgeInsets.fromLTRB(
-          24,
-          12,
-          24,
-          24,
-        ),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
         decoration: BoxDecoration(
           color: colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(28),
-          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           border: Border(
             top: BorderSide(
-              color: colorScheme.onSurface.withValues(
-                alpha: 0.08,
-              ),
+              color: colorScheme.onSurface.withValues(alpha: 0.08),
             ),
           ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
               child: Container(
                 width: 40,
                 height: 4,
-                margin: const EdgeInsets.only(
-                  bottom: 20,
-                ),
+                margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
-                  color: colorScheme.onSurface
-                      .withValues(alpha: 0.15),
-                  borderRadius:
-                      BorderRadius.circular(4),
+                  color: colorScheme.onSurface.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
                 ),
               ),
             ),
 
             Text(
               'How much did you drink?',
-              style: theme.textTheme.titleLarge
-                  ?.copyWith(
+              style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -861,8 +720,7 @@ class _AddWaterSheetState extends State<_AddWaterSheet> {
                 for (final amount in _quickAmounts)
                   _AmountChip(
                     label: '$amount ml',
-                    selected:
-                        _selectedAmount == amount,
+                    selected: _selectedAmount == amount,
                     onTap: () {
                       setState(() {
                         _selectedAmount = amount;
@@ -878,25 +736,17 @@ class _AddWaterSheetState extends State<_AddWaterSheet> {
               width: double.infinity,
               child: FilledButton(
                 style: FilledButton.styleFrom(
-                  backgroundColor:
-                      colorScheme.primary,
-                  foregroundColor:
-                      colorScheme.onPrimary,
-                  padding:
-                      const EdgeInsets.symmetric(
-                    vertical: 16,
-                  ),
-                  shape:
-                      RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(16),
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
                 ),
                 onPressed: _selectedAmount == null
                     ? null
                     : () {
-                        Navigator.of(context)
-                            .pop(_selectedAmount);
+                        Navigator.of(context).pop(_selectedAmount);
                       },
                 child: const Text('Add'),
               ),
@@ -908,9 +758,6 @@ class _AddWaterSheetState extends State<_AddWaterSheet> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Amount chip
-// ---------------------------------------------------------------------------
 
 class _AmountChip extends StatelessWidget {
   const _AmountChip({
@@ -930,44 +777,28 @@ class _AmountChip extends StatelessWidget {
 
     return Material(
       color: selected
-          ? colorScheme.primary.withValues(
-              alpha: 0.14,
-            )
-          : colorScheme.onSurface.withValues(
-              alpha: 0.05,
-            ),
+          ? colorScheme.primary.withValues(alpha: 0.14)
+          : colorScheme.onSurface.withValues(alpha: 0.05),
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: AnimatedContainer(
-          duration:
-              const Duration(milliseconds: 180),
-          padding:
-              const EdgeInsets.symmetric(
-            horizontal: 18,
-            vertical: 12,
-          ),
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           decoration: BoxDecoration(
-            borderRadius:
-                BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: selected
                   ? colorScheme.primary
-                  : colorScheme.onSurface
-                      .withValues(alpha: 0.1),
+                  : colorScheme.onSurface.withValues(alpha: 0.1),
             ),
           ),
           child: Text(
             label,
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(
-              color: selected
-                  ? colorScheme.primary
-                  : colorScheme.onSurface,
-              fontWeight: selected
-                  ? FontWeight.w700
-                  : FontWeight.w500,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: selected ? colorScheme.primary : colorScheme.onSurface,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
         ),
@@ -976,9 +807,6 @@ class _AmountChip extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Next reminder
-// ---------------------------------------------------------------------------
 
 class _NextReminderCard extends StatelessWidget {
   const _NextReminderCard({
@@ -1009,46 +837,35 @@ class _NextReminderCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: colorScheme.primaryContainer
-            .withValues(alpha: 0.35),
+        color: colorScheme.primaryContainer.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: colorScheme.onSurface.withValues(
-            alpha: 0.06,
-          ),
+          color: colorScheme.onSurface.withValues(alpha: 0.06),
         ),
       ),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment:
-                MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 'NEXT REMINDER',
-                style: theme.textTheme.labelMedium
-                    ?.copyWith(
+                style: theme.textTheme.labelMedium?.copyWith(
                   letterSpacing: 1.5,
                   fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurface
-                      .withValues(alpha: 0.55),
+                  color: colorScheme.onSurface.withValues(alpha: 0.55),
                 ),
               ),
 
               AnimatedOpacity(
                 opacity: justSkipped ? 1 : 0,
-                duration:
-                    const Duration(milliseconds: 200),
+                duration: const Duration(milliseconds: 200),
                 child: Text(
                   'Skipped',
-                  style: theme.textTheme.labelMedium
-                      ?.copyWith(
-                    color:
-                        colorScheme.primary,
-                    fontWeight:
-                        FontWeight.w700,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
@@ -1058,18 +875,13 @@ class _NextReminderCard extends StatelessWidget {
           const SizedBox(height: 12),
 
           AnimatedSwitcher(
-            duration:
-                const Duration(milliseconds: 250),
+            duration: const Duration(milliseconds: 250),
             child: Text(
               _formatted,
               key: ValueKey(_formatted),
-              style: theme.textTheme.displaySmall
-                  ?.copyWith(
-                fontWeight:
-                    FontWeight.w700,
-                fontFeatures: const [
-                  FontFeature.tabularFigures(),
-                ],
+              style: theme.textTheme.displaySmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
           ),
@@ -1077,30 +889,20 @@ class _NextReminderCard extends StatelessWidget {
           const SizedBox(height: 4),
 
           Row(
-            mainAxisAlignment:
-                MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
                   Icon(
                     Icons.water_drop_outlined,
                     size: 18,
-                    color: colorScheme
-                        .onSurface
-                        .withValues(
-                      alpha: 0.6,
-                    ),
+                    color: colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                   const SizedBox(width: 6),
                   Text(
                     'Drink 250 ml',
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(
-                      color: colorScheme
-                          .onSurface
-                          .withValues(
-                        alpha: 0.7,
-                      ),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
                   ),
                 ],
@@ -1108,13 +910,8 @@ class _NextReminderCard extends StatelessWidget {
 
               TextButton(
                 onPressed: onSkip,
-                style:
-                    TextButton.styleFrom(
-                  foregroundColor:
-                      colorScheme.onSurface
-                          .withValues(
-                    alpha: 0.6,
-                  ),
+                style: TextButton.styleFrom(
+                  foregroundColor: colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
                 child: const Text('Skip'),
               ),
@@ -1126,15 +923,9 @@ class _NextReminderCard extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Today's intake history
-// ---------------------------------------------------------------------------
 
 class _IntakeHistory extends StatelessWidget {
-  const _IntakeHistory({
-    required this.entries,
-    required this.isLoading,
-  });
+  const _IntakeHistory({required this.entries, required this.isLoading});
 
   final List<HydrationEntry> entries;
   final bool isLoading;
@@ -1145,13 +936,11 @@ class _IntakeHistory extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           "Today's intake",
-          style: theme.textTheme.titleMedium
-              ?.copyWith(
+          style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -1167,17 +956,12 @@ class _IntakeHistory extends StatelessWidget {
           )
         else if (entries.isEmpty)
           Padding(
-            padding:
-                const EdgeInsets.symmetric(
-              vertical: 20,
-            ),
+            padding: const EdgeInsets.symmetric(vertical: 20),
             child: Center(
               child: Text(
                 'No water logged yet today.',
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(
-                  color: colorScheme.onSurface
-                      .withValues(alpha: 0.5),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
             ),
@@ -1185,45 +969,30 @@ class _IntakeHistory extends StatelessWidget {
         else
           for (final entry in entries)
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(
-                vertical: 6,
-              ),
+              padding: const EdgeInsets.symmetric(vertical: 6),
               child: Row(
                 children: [
                   Icon(
                     Icons.water_drop_rounded,
                     size: 18,
-                    color:
-                        colorScheme.primary,
+                    color: colorScheme.primary,
                   ),
 
                   const SizedBox(width: 10),
 
                   Text(
                     '${entry.amountMl} ml',
-                    style: theme.textTheme
-                        .bodyMedium
-                        ?.copyWith(
-                      fontWeight:
-                          FontWeight.w600,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
 
                   const Spacer(),
 
                   Text(
-                    TimeOfDay.fromDateTime(
-                      entry.timestamp,
-                    ).format(context),
-                    style: theme.textTheme
-                        .bodySmall
-                        ?.copyWith(
-                      color: colorScheme
-                          .onSurface
-                          .withValues(
-                        alpha: 0.5,
-                      ),
+                    TimeOfDay.fromDateTime(entry.timestamp).format(context),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurface.withValues(alpha: 0.5),
                     ),
                   ),
                 ],
