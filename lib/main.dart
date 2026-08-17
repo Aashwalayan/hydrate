@@ -9,6 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'theme/hydrate_theme.dart';
 
 import 'services/notification_service.dart';
+import 'services/alarm_service.dart';
+import 'screens/alarm/alarm_ringing_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -35,15 +37,49 @@ class _HydrateAppState extends State<HydrateApp> {
   }
 
   Future<void> _initializeNotifications() async {
-    print('NOTIFICATION: starting initialization');
-
     await NotificationService.instance.initialize();
 
-    print('NOTIFICATION: initialization complete');
+    NotificationService.instance.onResponse =
+        AlarmService.instance.handleNotificationResponse;
 
-    await NotificationService.instance.testNotification();
+    AlarmService.instance.onAlarmTriggered = _showAlarmRingingScreen;
 
-    print('NOTIFICATION: test scheduled');
+    await AlarmService.instance.scheduleAlarm(
+      id: 999,
+      label: 'Test hydration alarm',
+      scheduledTime: DateTime.now().add(const Duration(seconds: 10)),
+    );
+
+    final launchDetails = await NotificationService.instance.getLaunchDetails();
+
+    if (launchDetails?.didNotificationLaunchApp == true) {
+      final alarm = ActiveAlarm.decode(
+        launchDetails!.notificationResponse?.payload,
+      );
+
+      if (alarm != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showAlarmRingingScreen(alarm);
+        });
+      }
+    }
+  }
+
+  void _showAlarmRingingScreen(ActiveAlarm alarm) {
+    final navigator = navigatorKey.currentState;
+
+    if (navigator == null) return;
+
+    navigator.push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => AlarmRingingScreen(
+          alarmId: alarm.id,
+          label: alarm.label,
+          scheduledTime: alarm.scheduledTime,
+        ),
+      ),
+    );
   }
 
   Future<void> _loadThemeSettings() async {

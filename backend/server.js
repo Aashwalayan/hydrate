@@ -5,6 +5,7 @@ require("dotenv").config();
 
 const authRoutes = require("./routes/authRoutes");
 const hydrationRoutes = require("./routes/hydrationRoutes");
+const hydrationAlarmRoutes = require("./routes/hydrationAlarmRoutes");
 
 const app = express();
 
@@ -13,6 +14,7 @@ app.use(express.json());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/hydration", hydrationRoutes);
+app.use("/api/hydration/alarms", hydrationAlarmRoutes);
 
 app.get("/", (req, res) => {
     res.json({

@@ -1,15 +1,10 @@
 import 'package:flutter/material.dart';
 
-// ---------------------------------------------------------------------------
-// Model
-// ---------------------------------------------------------------------------
+import '../../services/hydration_alarm_service.dart';
+import '../../services/alarm_service.dart';
 
-/// Whether an alarm's reminder times are evenly spaced between a start and
-/// end time, or manually set one-by-one.
 enum AlarmScheduleType { equalIntervals, custom }
 
-/// Placeholder tone selection. No native ringtone access yet — this is a
-/// frontend-only choice until real tone/ringtone integration is added.
 enum AlarmTone { defaultTone, chime, droplet, bell, gentleWave, silent }
 
 extension AlarmToneDisplay on AlarmTone {
@@ -112,10 +107,6 @@ class HydrationAlarm {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Time helpers
-// ---------------------------------------------------------------------------
-
 int _toMinutes(TimeOfDay t) => t.hour * 60 + t.minute;
 
 TimeOfDay _fromMinutes(int minutes) {
@@ -172,53 +163,77 @@ class AlarmScreen extends StatefulWidget {
 }
 
 class _AlarmScreenState extends State<AlarmScreen> {
-  // --- Mock data. Replace with real state/providers later. -----------------
-  // The first entry is always rendered as the "primary" card; everything
-  // after it renders under "Additional alarms". This list is the single
-  // source of truth, so add/edit/delete/toggle all just mutate it and the
-  // cards below update accordingly.
-  late final List<HydrationAlarm> _alarms = [
-    HydrationAlarm(
-      id: 'primary',
-      label: 'Hydration reminders',
-      scheduleType: AlarmScheduleType.equalIntervals,
-      reminderTimes: generateEqualIntervalTimes(
-        const TimeOfDay(hour: 8, minute: 0),
-        const TimeOfDay(hour: 22, minute: 0),
-        15,
+  HydrationAlarmDto _toDto(HydrationAlarm alarm) {
+    return HydrationAlarmDto(
+      id: alarm.id,
+      label: alarm.label,
+      scheduleType: alarm.scheduleType == AlarmScheduleType.equalIntervals
+          ? 'equalIntervals'
+          : 'custom',
+      reminderTimes: alarm.reminderTimes.map(_timeToString).toList(),
+      enabled: alarm.enabled,
+      startTime: alarm.startTime != null
+          ? _timeToString(alarm.startTime!)
+          : null,
+      endTime: alarm.endTime != null ? _timeToString(alarm.endTime!) : null,
+      intervalMinutes: alarm.intervalMinutes,
+      tone: alarm.tone.name,
+    );
+  }
+
+  HydrationAlarm _fromDto(HydrationAlarmDto dto) {
+    return HydrationAlarm(
+      id: dto.id,
+      label: dto.label,
+      scheduleType: dto.scheduleType == 'equalIntervals'
+          ? AlarmScheduleType.equalIntervals
+          : AlarmScheduleType.custom,
+      reminderTimes: dto.reminderTimes.map(_stringToTime).toList(),
+      enabled: dto.enabled,
+      startTime: dto.startTime != null ? _stringToTime(dto.startTime!) : null,
+      endTime: dto.endTime != null ? _stringToTime(dto.endTime!) : null,
+      intervalMinutes: dto.intervalMinutes,
+      tone: AlarmTone.values.firstWhere(
+        (tone) => tone.name == dto.tone,
+        orElse: () => AlarmTone.defaultTone,
       ),
-      startTime: const TimeOfDay(hour: 8, minute: 0),
-      endTime: const TimeOfDay(hour: 22, minute: 0),
-      intervalMinutes: 60,
-      enabled: true,
-    ),
-    HydrationAlarm(
-      id: 'workout',
-      label: 'Workout hydration boost',
-      scheduleType: AlarmScheduleType.equalIntervals,
-      reminderTimes: generateEqualIntervalTimes(
-        const TimeOfDay(hour: 17, minute: 0),
-        const TimeOfDay(hour: 18, minute: 30),
-        5,
-      ),
-      startTime: const TimeOfDay(hour: 17, minute: 0),
-      endTime: const TimeOfDay(hour: 18, minute: 30),
-      intervalMinutes: 20,
-      enabled: false,
-    ),
-    HydrationAlarm(
-      id: 'winddown',
-      label: 'Wind-down reminder',
-      scheduleType: AlarmScheduleType.custom,
-      reminderTimes: [
-        const TimeOfDay(hour: 20, minute: 0),
-        const TimeOfDay(hour: 21, minute: 15),
-        const TimeOfDay(hour: 22, minute: 30),
-      ],
-      tone: AlarmTone.gentleWave,
-      enabled: true,
-    ),
-  ];
+    );
+  }
+
+  final HydrationAlarmService _alarmService = HydrationAlarmService();
+
+  String _timeToString(TimeOfDay time) {
+    return '${time.hour.toString().padLeft(2, '0')}:'
+        '${time.minute.toString().padLeft(2, '0')}';
+  }
+
+  TimeOfDay _stringToTime(String value) {
+    final parts = value.split(':');
+
+    return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+  }
+
+  List<HydrationAlarm> _alarms = [];
+  bool _loading = true;
+
+  Future<void> _loadAlarms() async {
+    try {
+      final alarms = await _alarmService.getAlarms();
+
+      if (!mounted) return;
+
+      setState(() {
+        _alarms = alarms.map(_fromDto).toList();
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _loading = false;
+      });
+    }
+  }
 
   void _toggleAlarm(int index, bool value) {
     setState(() {
@@ -235,17 +250,87 @@ class _AlarmScreenState extends State<AlarmScreen> {
 
     if (result == null || !mounted) return;
 
-    setState(() {
-      if (result.deleted) {
-        if (index != null) _alarms.removeAt(index);
-      } else if (result.alarm != null) {
-        if (index != null) {
-          _alarms[index] = result.alarm!;
-        } else {
-          _alarms.add(result.alarm!);
-        }
+    if (result.deleted) {
+      if (index == null) return;
+
+      final alarm = _alarms[index];
+
+      final response = await _alarmService.deleteAlarm(alarm.id);
+
+      if (!mounted) return;
+
+      if (!response.success) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(response.message)));
+        return;
       }
-    });
+
+      setState(() {
+        _alarms.removeAt(index);
+      });
+
+      return;
+    }
+
+    final alarm = result.alarm;
+
+    if (alarm == null) return;
+
+    final dto = _toDto(alarm);
+
+    if (index == null) {
+      // New alarm
+      final response = await _alarmService.createAlarm(
+        label: dto.label,
+        scheduleType: dto.scheduleType,
+        reminderTimes: dto.reminderTimes,
+        enabled: dto.enabled,
+        startTime: dto.startTime,
+        endTime: dto.endTime,
+        intervalMinutes: dto.intervalMinutes,
+        tone: dto.tone,
+      );
+
+      if (!mounted) return;
+
+      if (!response.success || response.alarm == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(response.message)));
+        return;
+      }
+
+      setState(() {
+        _alarms.add(_fromDto(response.alarm!));
+      });
+    } else {
+      // Existing alarm
+      final response = await _alarmService.updateAlarm(
+        id: dto.id,
+        label: dto.label,
+        scheduleType: dto.scheduleType,
+        reminderTimes: dto.reminderTimes,
+        enabled: dto.enabled,
+        startTime: dto.startTime,
+        endTime: dto.endTime,
+        intervalMinutes: dto.intervalMinutes,
+        tone: dto.tone,
+      );
+
+      if (!mounted) return;
+
+      if (!response.success || response.alarm == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(response.message)));
+        return;
+      }
+
+      setState(() {
+        _alarms[index] = _fromDto(response.alarm!);
+      });
+    }
   }
 
   Future<void> _confirmDelete(int index) async {
@@ -278,7 +363,10 @@ class _AlarmScreenState extends State<AlarmScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final additionalAlarms = _alarms.length > 1 ? _alarms.sublist(1) : const <HydrationAlarm>[];
+
+    final additionalAlarms = _alarms.length > 1
+        ? _alarms.sublist(1)
+        : const <HydrationAlarm>[];
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -299,18 +387,17 @@ class _AlarmScreenState extends State<AlarmScreen> {
                   Text(
                     'When Hydrate reminds you to drink',
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(
-                        alpha: 0.6,
-                      ),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                   const SizedBox(height: 24),
-                  _AlarmCard(
-                    alarm: _alarms[0],
-                    primary: true,
-                    onToggle: (v) => _toggleAlarm(0, v),
-                    onTap: () => _openEditor(index: 0),
-                  ),
+                  if (_alarms.isNotEmpty)
+                    _AlarmCard(
+                      alarm: _alarms[0],
+                      primary: true,
+                      onToggle: (v) => _toggleAlarm(0, v),
+                      onTap: () => _openEditor(index: 0),
+                    ),
                   const SizedBox(height: 28),
                   Text(
                     'Additional alarms',
@@ -341,10 +428,6 @@ class _AlarmScreenState extends State<AlarmScreen> {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// Alarm card (visual design unchanged from before, now data-driven)
-// ---------------------------------------------------------------------------
 
 class _AlarmCard extends StatelessWidget {
   const _AlarmCard({
@@ -470,7 +553,11 @@ class _AlarmDetail extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(icon, size: 18, color: colorScheme.onSurface.withValues(alpha: 0.5)),
+        Icon(
+          icon,
+          size: 18,
+          color: colorScheme.onSurface.withValues(alpha: 0.5),
+        ),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
@@ -607,7 +694,8 @@ class _AlarmEditorScreenState extends State<_AlarmEditorScreen> {
       text: initial?.label ?? 'Hydration reminders',
     );
 
-    _customTimes = initial != null && initial.scheduleType == AlarmScheduleType.custom
+    _customTimes =
+        initial != null && initial.scheduleType == AlarmScheduleType.custom
         ? List.of(initial.reminderTimes)
         : _defaultCustomTimes(_count);
   }
@@ -635,8 +723,11 @@ class _AlarmEditorScreenState extends State<_AlarmEditorScreen> {
     if (newCount < current.length) {
       return current.sublist(0, newCount);
     }
-    final extra = generateEqualIntervalTimes(_startTime, _endTime, newCount)
-        .sublist(current.length);
+    final extra = generateEqualIntervalTimes(
+      _startTime,
+      _endTime,
+      newCount,
+    ).sublist(current.length);
     return [...current, ...extra];
   }
 
@@ -681,15 +772,21 @@ class _AlarmEditorScreenState extends State<_AlarmEditorScreen> {
   void _save() {
     final times = _previewTimes;
     final alarm = HydrationAlarm(
-      id: widget.initial?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+      id:
+          widget.initial?.id ??
+          DateTime.now().microsecondsSinceEpoch.toString(),
       label: _labelController.text.trim().isEmpty
           ? 'Hydration reminders'
           : _labelController.text.trim(),
       scheduleType: _scheduleType,
       reminderTimes: times,
       enabled: _enabled,
-      startTime: _scheduleType == AlarmScheduleType.equalIntervals ? _startTime : null,
-      endTime: _scheduleType == AlarmScheduleType.equalIntervals ? _endTime : null,
+      startTime: _scheduleType == AlarmScheduleType.equalIntervals
+          ? _startTime
+          : null,
+      endTime: _scheduleType == AlarmScheduleType.equalIntervals
+          ? _endTime
+          : null,
       intervalMinutes: _scheduleType == AlarmScheduleType.equalIntervals
           ? equalIntervalStepMinutes(_startTime, _endTime, _count)
           : null,
@@ -766,7 +863,10 @@ class _AlarmEditorScreenState extends State<_AlarmEditorScreen> {
         actions: [
           if (_isEditing)
             IconButton(
-              icon: Icon(Icons.delete_outline_rounded, color: colorScheme.error),
+              icon: Icon(
+                Icons.delete_outline_rounded,
+                color: colorScheme.error,
+              ),
               onPressed: _confirmDelete,
             ),
         ],
@@ -783,7 +883,9 @@ class _AlarmEditorScreenState extends State<_AlarmEditorScreen> {
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         height: 4,
-                        margin: EdgeInsets.only(right: i == _stepTitles.length - 1 ? 0 : 6),
+                        margin: EdgeInsets.only(
+                          right: i == _stepTitles.length - 1 ? 0 : 6,
+                        ),
                         decoration: BoxDecoration(
                           color: i <= _step
                               ? colorScheme.primary
@@ -802,7 +904,9 @@ class _AlarmEditorScreenState extends State<_AlarmEditorScreen> {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   _stepTitles[_step],
-                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
@@ -847,7 +951,9 @@ class _AlarmEditorScreenState extends State<_AlarmEditorScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        child: Text(_step == _stepTitles.length - 1 ? 'Save' : 'Next'),
+                        child: Text(
+                          _step == _stepTitles.length - 1 ? 'Save' : 'Next',
+                        ),
                       ),
                     ),
                   ],
@@ -863,7 +969,12 @@ class _AlarmEditorScreenState extends State<_AlarmEditorScreen> {
   Widget _buildStepBody(BuildContext context) {
     switch (_step) {
       case 0:
-        return _CountStep(count: _count, onChanged: _setCount, min: _minCount, max: _maxCount);
+        return _CountStep(
+          count: _count,
+          onChanged: _setCount,
+          min: _minCount,
+          max: _maxCount,
+        );
       case 1:
         return _ScheduleStep(
           scheduleType: _scheduleType,
@@ -939,7 +1050,9 @@ class _CountStep extends StatelessWidget {
                 child: Text(
                   '$count',
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w700),
+                  style: theme.textTheme.displaySmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               _StepperButton(
@@ -1117,17 +1230,26 @@ class _ScheduleTypeCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: selected ? colorScheme.primary : colorScheme.onSurface.withValues(alpha: 0.08),
+              color: selected
+                  ? colorScheme.primary
+                  : colorScheme.onSurface.withValues(alpha: 0.08),
             ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: selected ? colorScheme.primary : colorScheme.onSurface.withValues(alpha: 0.6)),
+              Icon(
+                icon,
+                color: selected
+                    ? colorScheme.primary
+                    : colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
               const SizedBox(height: 10),
               Text(
                 title,
-                style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -1187,11 +1309,15 @@ class _ToneAndLabelStep extends StatelessWidget {
             fillColor: colorScheme.onSurface.withValues(alpha: 0.03),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: colorScheme.onSurface.withValues(alpha: 0.1)),
+              borderSide: BorderSide(
+                color: colorScheme.onSurface.withValues(alpha: 0.1),
+              ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: colorScheme.onSurface.withValues(alpha: 0.1)),
+              borderSide: BorderSide(
+                color: colorScheme.onSurface.withValues(alpha: 0.1),
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
@@ -1221,7 +1347,11 @@ class _ToneAndLabelStep extends StatelessWidget {
           runSpacing: 10,
           children: [
             for (final t in AlarmTone.values)
-              _ToneChip(tone: t, selected: tone == t, onTap: () => onToneChanged(t)),
+              _ToneChip(
+                tone: t,
+                selected: tone == t,
+                onTap: () => onToneChanged(t),
+              ),
           ],
         ),
         const SizedBox(height: 24),
@@ -1231,12 +1361,18 @@ class _ToneAndLabelStep extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               child: Row(
                 children: [
-                  Icon(Icons.notifications_active_outlined, size: 20, color: colorScheme.onSurface.withValues(alpha: 0.7)),
+                  Icon(
+                    Icons.notifications_active_outlined,
+                    size: 20,
+                    color: colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Text(
                       'Enabled',
-                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                   Switch(
@@ -1255,7 +1391,11 @@ class _ToneAndLabelStep extends StatelessWidget {
 }
 
 class _ToneChip extends StatelessWidget {
-  const _ToneChip({required this.tone, required this.selected, required this.onTap});
+  const _ToneChip({
+    required this.tone,
+    required this.selected,
+    required this.onTap,
+  });
 
   final AlarmTone tone;
   final bool selected;
@@ -1279,7 +1419,9 @@ class _ToneChip extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: selected ? colorScheme.primary : colorScheme.onSurface.withValues(alpha: 0.1),
+              color: selected
+                  ? colorScheme.primary
+                  : colorScheme.onSurface.withValues(alpha: 0.1),
             ),
           ),
           child: Row(
@@ -1288,7 +1430,9 @@ class _ToneChip extends StatelessWidget {
               Icon(
                 tone.icon,
                 size: 16,
-                color: selected ? colorScheme.primary : colorScheme.onSurface.withValues(alpha: 0.6),
+                color: selected
+                    ? colorScheme.primary
+                    : colorScheme.onSurface.withValues(alpha: 0.6),
               ),
               const SizedBox(width: 6),
               Text(
@@ -1334,7 +1478,9 @@ class _PreviewStep extends StatelessWidget {
           decoration: BoxDecoration(
             color: colorScheme.primaryContainer.withValues(alpha: 0.35),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: colorScheme.onSurface.withValues(alpha: 0.06)),
+            border: Border.all(
+              color: colorScheme.onSurface.withValues(alpha: 0.06),
+            ),
           ),
           child: Row(
             children: [
@@ -1344,7 +1490,12 @@ class _PreviewStep extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(label, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                    Text(
+                      label,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                     Text(
                       scheduleType == AlarmScheduleType.equalIntervals
                           ? 'Equal intervals · ${times.length} reminders'
@@ -1356,7 +1507,11 @@ class _PreviewStep extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(tone.icon, size: 18, color: colorScheme.onSurface.withValues(alpha: 0.5)),
+              Icon(
+                tone.icon,
+                size: 18,
+                color: colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
             ],
           ),
         ),
@@ -1374,14 +1529,23 @@ class _PreviewStep extends StatelessWidget {
           children: [
             for (var i = 0; i < times.length; i++) ...[
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 child: Row(
                   children: [
-                    Icon(Icons.water_drop_rounded, size: 16, color: colorScheme.primary),
+                    Icon(
+                      Icons.water_drop_rounded,
+                      size: 16,
+                      color: colorScheme.primary,
+                    ),
                     const SizedBox(width: 12),
                     Text(
                       times[i].format(context),
-                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
@@ -1409,7 +1573,9 @@ class _SettingsCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.onSurface.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colorScheme.onSurface.withValues(alpha: 0.06)),
+        border: Border.all(
+          color: colorScheme.onSurface.withValues(alpha: 0.06),
+        ),
       ),
       child: Column(children: children),
     );
@@ -1455,12 +1621,18 @@ class _TimeRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              Icon(icon, size: 20, color: colorScheme.onSurface.withValues(alpha: 0.7)),
+              Icon(
+                icon,
+                size: 20,
+                color: colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
                   label,
-                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
               Text(
