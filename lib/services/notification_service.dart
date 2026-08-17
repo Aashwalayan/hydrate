@@ -3,7 +3,6 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
-import 'dart:developer' as developer;
 
 /// Runs in a separate background isolate when a notification is responded
 /// to (e.g. an action button tap) while the app is backgrounded/terminated
@@ -18,10 +17,7 @@ import 'dart:developer' as developer;
 /// handled in `main.dart` via [NotificationService.getLaunchDetails].
 @pragma('vm:entry-point')
 void notificationTapBackground(NotificationResponse response) {
-  developer.log(
-    'Background notification response: ${response.payload}',
-    name: 'NotificationService',
-  );
+  
 }
 
 class NotificationService {
@@ -138,68 +134,8 @@ class NotificationService {
     );
   }
 
-  // --- Existing manual test helpers, left as-is -----------------------------
-  // (Superseded by scheduleAlarmNotification for real alarms — kept here
-  // for manual debugging of the full-screen-intent mechanism in isolation.)
-
-  Future<void> testNotification() async {
-    developer.log('FULL SCREEN TEST: scheduling in 10 seconds');
-
-    final now = tz.TZDateTime.now(tz.local);
-    final scheduled = now.add(const Duration(seconds: 10));
-
-    await _notifications.zonedSchedule(
-      id: 999,
-      title: 'Hydrate Alarm',
-      body: 'This is a full-screen alarm test.',
-      scheduledDate: scheduled,
-      notificationDetails: const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'hydration_fullscreen_test',
-          'Hydration Full Screen Test',
-          channelDescription: 'Testing Hydrate alarm full-screen behavior',
-          importance: Importance.max,
-          priority: Priority.max,
-          playSound: true,
-          enableVibration: true,
-          fullScreenIntent: true,
-          category: AndroidNotificationCategory.alarm,
-        ),
-      ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-    );
-
-    developer.log('FULL SCREEN TEST: scheduled successfully');
-  }
-
-  Future<void> scheduleTestAlarm() async {
-    await initialize();
-
-    final scheduledTime = tz.TZDateTime.now(
-      tz.local,
-    ).add(const Duration(seconds: 10));
-
-    const notificationDetails = NotificationDetails(
-      android: AndroidNotificationDetails(
-        'hydration_alarms',
-        'Hydration Alarms',
-        channelDescription: 'Hydration reminder alarms',
-        importance: Importance.max,
-        priority: Priority.max,
-        playSound: true,
-        fullScreenIntent: true,
-      ),
-    );
-
-    await _notifications.zonedSchedule(
-      id: 999,
-      title: 'Time to hydrate',
-      body: 'Drink some water.',
-      scheduledDate: scheduledTime,
-      notificationDetails: notificationDetails,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-    );
-  }
+  
+  
 
   Future<void> cancel(int id) async {
     await _notifications.cancel(id: id);
