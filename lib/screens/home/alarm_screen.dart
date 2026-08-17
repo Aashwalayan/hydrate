@@ -163,6 +163,34 @@ class AlarmScreen extends StatefulWidget {
 }
 
 class _AlarmScreenState extends State<AlarmScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _loadAlarms();
+  }
+
+  List<DateTime> _toDateTimes(List<TimeOfDay> times) {
+    return times.map(_nextOccurrence).toList();
+  }
+
+  DateTime _nextOccurrence(TimeOfDay time) {
+    final now = DateTime.now();
+
+    var scheduled = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      time.hour,
+      time.minute,
+    );
+
+    if (!scheduled.isAfter(now)) {
+      scheduled = scheduled.add(const Duration(days: 1));
+    }
+
+    return scheduled;
+  }
+
   HydrationAlarmDto _toDto(HydrationAlarm alarm) {
     return HydrationAlarmDto(
       id: alarm.id,
@@ -219,14 +247,33 @@ class _AlarmScreenState extends State<AlarmScreen> {
   Future<void> _loadAlarms() async {
     try {
       final alarms = await _alarmService.getAlarms();
+      final loadedAlarms = alarms.map(_fromDto).toList();
 
+      // Show the persisted alarms first.
       if (!mounted) return;
 
       setState(() {
-        _alarms = alarms.map(_fromDto).toList();
+        _alarms = loadedAlarms;
         _loading = false;
       });
+
+      // Restore notifications separately.
+      for (final alarm in loadedAlarms) {
+        if (!alarm.enabled) continue;
+
+        try {
+          await AlarmService.instance.scheduleAlarm(
+            id: alarm.id,
+            label: alarm.label,
+            reminderTimes: _toDateTimes(alarm.reminderTimes),
+          );
+        } catch (e) {
+          debugPrint('Failed to restore alarm ${alarm.id}: $e');
+        }
+      }
     } catch (e) {
+      debugPrint('Failed to load hydration alarms: $e');
+
       if (!mounted) return;
 
       setState(() {
@@ -235,9 +282,39 @@ class _AlarmScreenState extends State<AlarmScreen> {
     }
   }
 
-  void _toggleAlarm(int index, bool value) {
+  Future<void> _toggleAlarm(int index, bool value) async {
+    final alarm = _alarms[index];
+
+    final response = await _alarmService.toggleAlarm(alarm.id);
+
+    if (!mounted) return;
+
+    if (!response.success || response.alarm == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(response.message)));
+      return;
+    }
+
+    final updatedAlarm = _fromDto(response.alarm!);
+
+    if (updatedAlarm.enabled) {
+      await AlarmService.instance.scheduleAlarm(
+        id: updatedAlarm.id,
+        label: updatedAlarm.label,
+        reminderTimes: _toDateTimes(updatedAlarm.reminderTimes),
+      );
+    } else {
+      await AlarmService.instance.cancelAlarm(
+        updatedAlarm.id,
+        reminderCount: updatedAlarm.reminderTimes.length,
+      );
+    }
+
+    if (!mounted) return;
+
     setState(() {
-      _alarms[index] = _alarms[index].copyWith(enabled: value);
+      _alarms[index] = updatedAlarm;
     });
   }
 
@@ -254,6 +331,11 @@ class _AlarmScreenState extends State<AlarmScreen> {
       if (index == null) return;
 
       final alarm = _alarms[index];
+
+      await AlarmService.instance.cancelAlarm(
+        alarm.id,
+        reminderCount: alarm.reminderTimes.length,
+      );
 
       final response = await _alarmService.deleteAlarm(alarm.id);
 
@@ -279,8 +361,10 @@ class _AlarmScreenState extends State<AlarmScreen> {
 
     final dto = _toDto(alarm);
 
+    // ------------------------------------------------------------
+    // CREATE
+    // ------------------------------------------------------------
     if (index == null) {
-      // New alarm
       final response = await _alarmService.createAlarm(
         label: dto.label,
         scheduleType: dto.scheduleType,
@@ -301,36 +385,72 @@ class _AlarmScreenState extends State<AlarmScreen> {
         return;
       }
 
-      setState(() {
-        _alarms.add(_fromDto(response.alarm!));
-      });
-    } else {
-      // Existing alarm
-      final response = await _alarmService.updateAlarm(
-        id: dto.id,
-        label: dto.label,
-        scheduleType: dto.scheduleType,
-        reminderTimes: dto.reminderTimes,
-        enabled: dto.enabled,
-        startTime: dto.startTime,
-        endTime: dto.endTime,
-        intervalMinutes: dto.intervalMinutes,
-        tone: dto.tone,
-      );
+      final savedAlarm = _fromDto(response.alarm!);
+
+      if (savedAlarm.enabled) {
+        await AlarmService.instance.scheduleAlarm(
+          id: savedAlarm.id,
+          label: savedAlarm.label,
+          reminderTimes: _toDateTimes(savedAlarm.reminderTimes),
+        );
+      }
 
       if (!mounted) return;
 
-      if (!response.success || response.alarm == null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(response.message)));
-        return;
-      }
-
       setState(() {
-        _alarms[index] = _fromDto(response.alarm!);
+        _alarms.add(savedAlarm);
       });
+
+      return;
     }
+
+    // ------------------------------------------------------------
+    // EDIT
+    // ------------------------------------------------------------
+    final oldAlarm = _alarms[index];
+
+    final response = await _alarmService.updateAlarm(
+      id: dto.id,
+      label: dto.label,
+      scheduleType: dto.scheduleType,
+      reminderTimes: dto.reminderTimes,
+      enabled: dto.enabled,
+      startTime: dto.startTime,
+      endTime: dto.endTime,
+      intervalMinutes: dto.intervalMinutes,
+      tone: dto.tone,
+    );
+
+    if (!mounted) return;
+
+    if (!response.success || response.alarm == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(response.message)));
+      return;
+    }
+
+    final savedAlarm = _fromDto(response.alarm!);
+
+    await AlarmService.instance.rescheduleAlarm(
+      id: savedAlarm.id,
+      label: savedAlarm.label,
+      oldReminderTimes: _toDateTimes(oldAlarm.reminderTimes),
+      newReminderTimes: _toDateTimes(savedAlarm.reminderTimes),
+    );
+
+    if (!savedAlarm.enabled) {
+      await AlarmService.instance.cancelAlarm(
+        savedAlarm.id,
+        reminderCount: savedAlarm.reminderTimes.length,
+      );
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _alarms[index] = savedAlarm;
+    });
   }
 
   Future<void> _confirmDelete(int index) async {

@@ -1,12 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'notification_service.dart';
 
-/// The minimal information needed to render a firing alarm — deliberately
-/// much smaller than the full `HydrationAlarm` config model, since the
-/// ringing screen only needs to know what fired, not how it was configured.
 @immutable
 class ActiveAlarm {
   const ActiveAlarm({
@@ -20,26 +18,22 @@ class ActiveAlarm {
   final DateTime scheduledTime;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'label': label,
-        'scheduledTime': scheduledTime.toIso8601String(),
-      };
+    'id': id,
+    'label': label,
+    'scheduledTime': scheduledTime.toIso8601String(),
+  };
 
   factory ActiveAlarm.fromJson(Map<String, dynamic> json) => ActiveAlarm(
-        id: json['id'] as int,
-        label: json['label'] as String,
-        scheduledTime: DateTime.parse(json['scheduledTime'] as String),
-      );
+    id: json['id'] as int,
+    label: json['label'] as String,
+    scheduledTime: DateTime.parse(json['scheduledTime'] as String),
+  );
 
-  /// Encodes this alarm into the string carried as a notification payload.
   String encode() => jsonEncode(toJson());
 
-  /// Decodes a notification payload back into an [ActiveAlarm]. Returns
-  /// `null` for anything that isn't a valid encoded alarm — e.g. a
-  /// notification payload from some other feature, or a malformed/legacy
-  /// payload — rather than throwing.
   static ActiveAlarm? decode(String? payload) {
     if (payload == null || payload.isEmpty) return null;
+
     try {
       final map = jsonDecode(payload) as Map<String, dynamic>;
       return ActiveAlarm.fromJson(map);
@@ -49,12 +43,6 @@ class ActiveAlarm {
   }
 }
 
-/// Sits between the alarm configuration UI (`alarm_screen.dart`),
-/// `NotificationService`, and `AlarmRingingScreen`.
-///
-/// `AlarmRingingScreen` should only ever call [dismiss] / [snooze] here —
-/// it should never talk to `NotificationService` directly, and it should
-/// never contain scheduling logic itself.
 class AlarmService {
   AlarmService._();
 
@@ -62,75 +50,168 @@ class AlarmService {
 
   static const Duration defaultSnoozeDuration = Duration(minutes: 10);
 
-  /// The alarm currently believed to be ringing, if any. `AlarmRingingScreen`
-  /// doesn't need to read this directly (it's constructed with the alarm
-  /// data it needs), but other parts of the app can observe it if useful —
-  /// e.g. to avoid double-showing the ringing screen.
-  final ValueNotifier<ActiveAlarm?> activeAlarm = ValueNotifier(null);
+  /// Number of decimal places reserved for the reminder slot.
+  ///
+  /// Example:
+  /// alarm ID 42, slot 0 -> 4200
+  /// alarm ID 42, slot 1 -> 4201
+  /// alarm ID 42, slot 2 -> 4202
+  static const int _notificationIdMultiplier = 100;
+  static const MethodChannel _nativeAlarmChannel = MethodChannel(
+    'com.hydrate/alarm',
+  );
 
-  /// Set once by the app root (see `main.dart`). Called whenever an alarm
-  /// should be shown to the user. Kept as a plain callback rather than a
-  /// direct import of Navigator/MaterialPageRoute so this service has zero
-  /// UI dependencies.
+  final ValueNotifier<ActiveAlarm?> activeAlarm = ValueNotifier<ActiveAlarm?>(
+    null,
+  );
+
   void Function(ActiveAlarm alarm)? onAlarmTriggered;
 
-  /// Schedules a single hydration alarm. [id] should match the id used for
-  /// the underlying `HydrationAlarm` reminder slot so cancelling/rescheduling
-  /// stays 1:1 with the configuration screen.
-  Future<void> scheduleAlarm({
-    required int id,
+  /// Generates the Android notification ID for one reminder slot.
+  int notificationIdFor(String alarmId, int reminderIndex) {
+    final numericId = alarmId.hashCode.abs() & 0x7FFFFFFF;
+
+    return (numericId + reminderIndex) & 0x7FFFFFFF;
+  }
+
+  /// Schedule every reminder belonging to one HydrationAlarm.
+  ///
+  /// Each DateTime in [reminderTimes] becomes an independent Android
+  /// notification.
+
+  Future<void> _scheduleNativeAlarm({
+    required int alarmId,
     required String label,
     required DateTime scheduledTime,
   }) async {
-    final alarm = ActiveAlarm(id: id, label: label, scheduledTime: scheduledTime);
-    await NotificationService.instance.scheduleAlarmNotification(
-      id: id,
-      title: 'Time to hydrate',
-      body: label,
-      scheduledTime: scheduledTime,
-      payload: alarm.encode(),
-    );
+    await _nativeAlarmChannel.invokeMethod('scheduleAlarm', {
+      'alarmId': alarmId,
+      'label': label,
+      'scheduledTime': scheduledTime.millisecondsSinceEpoch,
+    });
   }
 
-  Future<void> cancelAlarm(int id) async {
-    await NotificationService.instance.cancel(id);
-    if (activeAlarm.value?.id == id) {
+  Future<void> _cancelNativeAlarm(int alarmId) async {
+    await _nativeAlarmChannel.invokeMethod('cancelAlarm', {'alarmId': alarmId});
+  }
+
+  Future<void> scheduleAlarm({
+    required String id,
+    required String label,
+    required List<DateTime> reminderTimes,
+  }) async {
+    for (var i = 0; i < reminderTimes.length; i++) {
+      final scheduledTime = reminderTimes[i];
+      final notificationId = notificationIdFor(id, i);
+
+      await _scheduleNativeAlarm(
+        alarmId: notificationId,
+        label: label,
+        scheduledTime: scheduledTime,
+      );
+    }
+  }
+
+  /// Cancel all notification slots belonging to an alarm.
+  ///
+  /// [reminderCount] should be the number of reminderTimes currently
+  /// belonging to the alarm.
+  Future<void> cancelAlarm(String id, {required int reminderCount}) async {
+    for (var i = 0; i < reminderCount; i++) {
+      final notificationId = notificationIdFor(id, i);
+      await _cancelNativeAlarm(notificationId);
+
+      if (activeAlarm.value?.id == notificationId) {
+        activeAlarm.value = null;
+      }
+    }
+  }
+
+  /// Reschedule an edited alarm.
+  ///
+  /// The old reminder notifications are cancelled first, then the new
+  /// reminderTimes are scheduled.
+  Future<void> rescheduleAlarm({
+    required String id,
+    required String label,
+    required List<DateTime> oldReminderTimes,
+    required List<DateTime> newReminderTimes,
+  }) async {
+    await cancelAlarm(id, reminderCount: oldReminderTimes.length);
+
+    await scheduleAlarm(id: id, label: label, reminderTimes: newReminderTimes);
+  }
+
+  /// Dismiss the currently firing notification.
+  Future<void> dismiss(int notificationId) async {
+    await _cancelNativeAlarm(notificationId);
+
+    if (activeAlarm.value?.id == notificationId) {
       activeAlarm.value = null;
     }
   }
 
-  /// Called by `AlarmRingingScreen` when the user taps Dismiss. Cancels the
-  /// notification and clears the active-alarm state. Sound/vibration
-  /// stopping is the ringing screen's own responsibility (it owns those
-  /// timers), not this service's.
-  Future<void> dismiss(int id) => cancelAlarm(id);
+  Future<ActiveAlarm?> getInitialNativeAlarm() async {
+    final result = await _nativeAlarmChannel.invokeMethod<dynamic>(
+      'getInitialAlarm',
+    );
 
-  /// Called by `AlarmRingingScreen` when the user taps Snooze. Cancels the
-  /// current notification and reschedules the same alarm [duration] later.
-  /// Defaults to 10 minutes; pass a different value once this is backed by
-  /// a real user setting.
+    if (result == null) return null;
+
+    final map = Map<String, dynamic>.from(result as Map);
+
+    final alarmId = map['alarmId'] as int?;
+    final label = map['label'] as String?;
+    final scheduledTime = map['scheduledTime'] as int?;
+
+    if (alarmId == null || label == null || scheduledTime == null) {
+      return null;
+    }
+
+    return ActiveAlarm(
+      id: alarmId,
+      label: label,
+      scheduledTime: DateTime.fromMillisecondsSinceEpoch(scheduledTime),
+    );
+  }
+
+  /// Snooze the currently firing notification.
+  ///
+  /// Snooze deliberately uses the notification ID of the reminder that
+  /// actually fired. It does not modify the persisted HydrationAlarm
+  /// schedule.
   Future<void> snooze(
     ActiveAlarm alarm, {
     Duration duration = defaultSnoozeDuration,
   }) async {
     activeAlarm.value = null;
+
     await NotificationService.instance.cancel(alarm.id);
+
     final newTime = DateTime.now().add(duration);
-    await scheduleAlarm(id: alarm.id, label: alarm.label, scheduledTime: newTime);
+
+    final snoozedAlarm = ActiveAlarm(
+      id: alarm.id,
+      label: alarm.label,
+      scheduledTime: newTime,
+    );
+
+    await NotificationService.instance.scheduleAlarmNotification(
+      id: alarm.id,
+      title: 'Time to hydrate',
+      body: alarm.label,
+      scheduledTime: newTime,
+      payload: snoozedAlarm.encode(),
+    );
   }
 
-  /// Called by [NotificationService] whenever a notification response
-  /// arrives while the Dart isolate is already alive (foreground, or
-  /// background with the engine still running). Decodes the payload and,
-  /// if it's a valid alarm payload, hands off to [onAlarmTriggered].
-  ///
-  /// This does NOT cover the case where the app process itself was
-  /// launched fresh by the notification — see
-  /// `NotificationService.getLaunchDetails()`, checked once at startup in
-  /// `main.dart`, for that case.
+  /// Called by NotificationService whenever a notification response arrives
+  /// while the Dart isolate is alive.
   void handleNotificationResponse(String? payload) {
     final alarm = ActiveAlarm.decode(payload);
+
     if (alarm == null) return;
+
     activeAlarm.value = alarm;
     onAlarmTriggered?.call(alarm);
   }

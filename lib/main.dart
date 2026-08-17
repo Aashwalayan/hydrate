@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'theme/app_theme.dart';
 import 'theme/theme_controller.dart';
@@ -44,11 +45,31 @@ class _HydrateAppState extends State<HydrateApp> {
 
     AlarmService.instance.onAlarmTriggered = _showAlarmRingingScreen;
 
-    await AlarmService.instance.scheduleAlarm(
-      id: 999,
-      label: 'Test hydration alarm',
-      scheduledTime: DateTime.now().add(const Duration(seconds: 10)),
-    );
+    const nativeAlarmChannel = MethodChannel('com.hydrate/alarm');
+
+    nativeAlarmChannel.setMethodCallHandler((call) async {
+      if (call.method != 'alarmTriggered') return;
+
+      final arguments = Map<String, dynamic>.from(call.arguments as Map);
+
+      final alarmId = arguments['alarmId'] as int?;
+      final label = arguments['label'] as String?;
+      final scheduledTime = arguments['scheduledTime'] as int?;
+
+      if (alarmId == null || label == null || scheduledTime == null) {
+        return;
+      }
+
+      final alarm = ActiveAlarm(
+        id: alarmId,
+        label: label,
+        scheduledTime: DateTime.fromMillisecondsSinceEpoch(scheduledTime),
+      );
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showAlarmRingingScreen(alarm);
+      });
+    });
 
     final launchDetails = await NotificationService.instance.getLaunchDetails();
 
@@ -62,6 +83,14 @@ class _HydrateAppState extends State<HydrateApp> {
           _showAlarmRingingScreen(alarm);
         });
       }
+    }
+
+    final nativeAlarm = await AlarmService.instance.getInitialNativeAlarm();
+
+    if (nativeAlarm != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showAlarmRingingScreen(nativeAlarm);
+      });
     }
   }
 
