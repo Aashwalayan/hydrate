@@ -1,7 +1,9 @@
 package com.example.hydrate
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -14,6 +16,19 @@ class MainActivity : FlutterActivity() {
     }
 
     private var alarmChannel: MethodChannel? = null
+    private var pendingAlarmIntent: Intent? = null
+    private var deliveredInitialAlarm = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        }
+
+        dispatchAlarmIntent(intent, "onCreate")
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -71,11 +86,20 @@ class MainActivity : FlutterActivity() {
                 }
 
                 "getInitialAlarm" -> {
-                    result.success(intent?.toAlarmMap())
+                    result.success(
+                        if (deliveredInitialAlarm) null else intent?.toAlarmMap()
+                    )
                 }
 
                 else -> result.notImplemented()
             }
+        }
+
+        pendingAlarmIntent?.let { pendingIntent ->
+            Log.d("HydrationAlarm", "DELIVERING PENDING INTENT to Flutter")
+            alarmChannel?.invokeMethod("alarmTriggered", pendingIntent.toAlarmMap())
+            deliveredInitialAlarm = true
+            pendingAlarmIntent = null
         }
     }
 
@@ -83,13 +107,26 @@ class MainActivity : FlutterActivity() {
         super.onNewIntent(intent)
 
         setIntent(intent)
+        dispatchAlarmIntent(intent, "onNewIntent")
+    }
 
-        if (intent.action == ALARM_ACTION) {
-            alarmChannel?.invokeMethod(
-                "alarmTriggered",
-                intent.toAlarmMap()
-            )
+    private fun dispatchAlarmIntent(sourceIntent: Intent?, source: String) {
+        if (sourceIntent?.action != ALARM_ACTION) return
+
+        val alarmMap = sourceIntent.toAlarmMap() ?: return
+
+        Log.d(
+            "HydrationAlarm",
+            "MAIN ACTIVITY RECEIVED ALARM INTENT from=$source id=${alarmMap["alarmId"]}"
+        )
+
+        if (alarmChannel == null) {
+            pendingAlarmIntent = sourceIntent
+            return
         }
+
+        alarmChannel?.invokeMethod("alarmTriggered", alarmMap)
+        deliveredInitialAlarm = true
     }
 
     private fun Intent.toAlarmMap(): Map<String, Any>? {

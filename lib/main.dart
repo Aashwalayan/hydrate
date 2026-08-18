@@ -60,6 +60,10 @@ class _HydrateAppState extends State<HydrateApp> {
         return;
       }
 
+      debugPrint(
+        'HydrationAlarm: Flutter received native alarmTriggered for id=$alarmId',
+      );
+
       final alarm = ActiveAlarm(
         id: alarmId,
         label: label,
@@ -88,6 +92,9 @@ class _HydrateAppState extends State<HydrateApp> {
     final nativeAlarm = await AlarmService.instance.getInitialNativeAlarm();
 
     if (nativeAlarm != null) {
+      debugPrint(
+        'HydrationAlarm: Flutter found initial native alarm id=${nativeAlarm.id}',
+      );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showAlarmRingingScreen(nativeAlarm);
       });

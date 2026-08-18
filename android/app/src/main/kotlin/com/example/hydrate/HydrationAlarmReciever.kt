@@ -75,8 +75,10 @@ class HydrationAlarmReceiver : BroadcastReceiver() {
             .setContentText(label)
             .setCategory(android.app.Notification.CATEGORY_ALARM)
             .setPriority(android.app.Notification.PRIORITY_MAX)
+            .setContentIntent(pendingIntent)
             .setAutoCancel(false)
             .setOngoing(true)
+            .setVisibility(android.app.Notification.VISIBILITY_PUBLIC)
             .setFullScreenIntent(pendingIntent, true)
             .build()
 
@@ -100,6 +102,13 @@ class HydrationAlarmReceiver : BroadcastReceiver() {
 
         val existingChannel =
             notificationManager.getNotificationChannel(CHANNEL_ID)
+
+        if (existingChannel != null) {
+            android.util.Log.d(
+                "HydrationAlarm",
+                "CHANNEL STATE: id=$CHANNEL_ID importance=${existingChannel.importance} sound=${existingChannel.sound}"
+            )
+        }
 
         if (existingChannel != null) return
 
