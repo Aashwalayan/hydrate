@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.util.Log
 
 object HydrationAlarmScheduler {
 
@@ -33,6 +34,11 @@ object HydrationAlarmScheduler {
                 )
             }
         }
+
+        Log.d(
+            "HydrationAlarm",
+            "SCHEDULING alarmId=$alarmId scheduledTime=$scheduledTime now=${System.currentTimeMillis()} delta=${scheduledTime - System.currentTimeMillis()}"
+        )
 
         alarmManager.setExactAndAllowWhileIdle(
             AlarmManager.RTC_WAKEUP,

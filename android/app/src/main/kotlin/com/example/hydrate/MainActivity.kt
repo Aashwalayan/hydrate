@@ -20,6 +20,7 @@ class MainActivity : FlutterActivity() {
     private var deliveredInitialAlarm = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        Log.d("HydrationAlarm", "MAIN ACTIVITY onCreate")
         super.onCreate(savedInstanceState)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
@@ -31,6 +32,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        Log.d("HydrationAlarm", "CONFIGURE FLUTTER ENGINE")
         super.configureFlutterEngine(flutterEngine)
 
         alarmChannel = MethodChannel(
@@ -55,7 +57,7 @@ class MainActivity : FlutterActivity() {
                         return@setMethodCallHandler
                     }
 
-                        HydrationAlarmScheduler.schedule(
+                    HydrationAlarmScheduler.schedule(
                         context = this,
                         alarmId = alarmId,
                         label = label,
@@ -86,21 +88,24 @@ class MainActivity : FlutterActivity() {
                 }
 
                 "getInitialAlarm" -> {
-                    result.success(
-                        if (deliveredInitialAlarm) null else intent?.toAlarmMap()
+                    val alarmIntent = pendingAlarmIntent ?: intent
+                    val alarmMap = alarmIntent?.toAlarmMap()
+
+                    Log.d(
+                        "HydrationAlarm",
+                        "getInitialAlarm returning=${alarmMap != null}"
                     )
+
+                    pendingAlarmIntent = null
+                    deliveredInitialAlarm = true
+
+                    result.success(alarmMap)
                 }
 
                 else -> result.notImplemented()
             }
         }
 
-        pendingAlarmIntent?.let { pendingIntent ->
-            Log.d("HydrationAlarm", "DELIVERING PENDING INTENT to Flutter")
-            alarmChannel?.invokeMethod("alarmTriggered", pendingIntent.toAlarmMap())
-            deliveredInitialAlarm = true
-            pendingAlarmIntent = null
-        }
     }
 
     override fun onNewIntent(intent: Intent) {

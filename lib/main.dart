@@ -40,11 +40,6 @@ class _HydrateAppState extends State<HydrateApp> {
   Future<void> _initializeNotifications() async {
     await NotificationService.instance.initialize();
 
-    NotificationService.instance.onResponse =
-        AlarmService.instance.handleNotificationResponse;
-
-    AlarmService.instance.onAlarmTriggered = _showAlarmRingingScreen;
-
     const nativeAlarmChannel = MethodChannel('com.hydrate/alarm');
 
     nativeAlarmChannel.setMethodCallHandler((call) async {
@@ -74,6 +69,13 @@ class _HydrateAppState extends State<HydrateApp> {
         _showAlarmRingingScreen(alarm);
       });
     });
+
+    NotificationService.instance.onResponse =
+        AlarmService.instance.handleNotificationResponse;
+
+    AlarmService.instance.onAlarmTriggered = _showAlarmRingingScreen;
+
+    
 
     final launchDetails = await NotificationService.instance.getLaunchDetails();
 
