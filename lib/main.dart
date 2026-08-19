@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'theme/app_theme.dart';
 import 'theme/theme_controller.dart';
@@ -21,10 +22,26 @@ const MethodChannel _alarmLaunchChannel = MethodChannel(
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+Future<void> checkAndroidScheduleExactAlarmPermission() async {
+  final status = await Permission.scheduleExactAlarm.status;
+
+  debugPrint('===== EXACT ALARM PERMISSION =====');
+  debugPrint('Status: $status');
+
+  if (status.isDenied) {
+    final result = await Permission.scheduleExactAlarm.request();
+
+    debugPrint('Request result: $result');
+    debugPrint('Granted: ${result.isGranted}');
+  }
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Alarm.init();
+
+  await checkAndroidScheduleExactAlarmPermission();
 
   runApp(const HydrateApp());
 }
@@ -71,29 +88,29 @@ class _HydrateAppState extends State<HydrateApp> {
     });
   }
 
-  Future<void> _testAlarmService() async {
-    final time = DateTime.now().add(const Duration(minutes: 1));
+  // Future<void> _testAlarmService() async {
+  //   final time = DateTime.now().add(const Duration(minutes: 1));
 
-    await AlarmService.instance.scheduleAlarm(
-      id: 'migration_test',
-      label: 'AlarmService migration test',
-      reminderTimes: [time],
-    );
-    final alarms = await Alarm.getAlarms();
+  //   await AlarmService.instance.scheduleAlarm(
+  //     id: 'migration_test',
+  //     label: 'AlarmService migration test',
+  //     reminderTimes: [time],
+  //   );
+  //   final alarms = await Alarm.getAlarms();
 
-    for (final alarm in alarms) {
-      debugPrint('SCHEDULED ALARM: id=${alarm.id}, dateTime=${alarm.dateTime}');
-    }
+  //   for (final alarm in alarms) {
+  //     debugPrint('SCHEDULED ALARM: id=${alarm.id}, dateTime=${alarm.dateTime}');
+  //   }
 
-    debugPrint('ALARM SERVICE TEST SCHEDULED: $time');
-  }
+  //   debugPrint('ALARM SERVICE TEST SCHEDULED: $time');
+  // }
 
   Future<void> _initializeNotifications() async {
     await NotificationService.instance.initialize();
     AlarmService.instance.onAlarmTriggered = _showAlarmRingingScreen;
     AlarmService.instance.initialize();
     await _handleInitialAlarmLaunch();
-    await _testAlarmService();
+    //await _testAlarmService();
   }
 
   void _showAlarmRingingScreen(ActiveAlarm alarm) {

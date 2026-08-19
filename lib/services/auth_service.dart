@@ -40,12 +40,18 @@ class AuthService {
 
   Future<bool> isOnboardingComplete() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('onboarding_complete') ?? false;
+    final value = prefs.getBool('onboarding_complete') ?? false;
+
+    print('ONBOARDING COMPLETE: $value');
+
+    return value;
   }
 
   Future<bool> hasValidSession() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
+
+    print('AUTH TOKEN ON STARTUP: $token');
 
     return token != null && token.isNotEmpty;
   }

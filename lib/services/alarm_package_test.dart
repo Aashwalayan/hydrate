@@ -5,12 +5,12 @@ class AlarmPackageTest {
   static Future<void> scheduleTestAlarm() async {
     final settings = AlarmSettings(
       id: 999999,
-      dateTime: DateTime.now().add(const Duration(minutes: 1)),
+      dateTime: DateTime.now().add(const Duration(seconds: 10)),
       assetAudioPath: 'assets/sounds/alarm.mp3',
       loopAudio: true,
       vibrate: true,
       androidFullScreenIntent: true,
-      warningNotificationOnKill: false,
+      warningNotificationOnKill: true,
       volumeSettings: const VolumeSettings.fixed(
         volume: 1.0,
       ),
