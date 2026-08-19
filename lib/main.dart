@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'theme/app_theme.dart';
 import 'theme/theme_controller.dart';
@@ -7,6 +6,8 @@ import 'theme/theme_provider.dart';
 import 'screens/splash/splash_screen.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:alarm/alarm.dart';
+
 import 'theme/hydrate_theme.dart';
 
 import 'services/notification_service.dart';
@@ -15,8 +16,11 @@ import 'screens/alarm/alarm_ringing_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Alarm.init();
+
   runApp(const HydrateApp());
 }
 
@@ -35,47 +39,52 @@ class _HydrateAppState extends State<HydrateApp> {
     super.initState();
     _loadThemeSettings();
     _initializeNotifications();
+    _listenForAlarmPackage();
+  }
+
+  void _listenForAlarmPackage() {
+    Alarm.ringing.listen((alarmSet) {
+      for (final alarm in alarmSet.alarms) {
+        debugPrint(
+          'ALARM PACKAGE FIRED: id=${alarm.id}, '
+          'payload=${alarm.payload}',
+        );
+      }
+    });
+  }
+
+  Future<void> _testAlarm() async {
+    final settings = AlarmSettings(
+      id: 999999,
+      dateTime: DateTime.now().add(const Duration(minutes: 1)),
+      assetAudioPath: 'assets/sounds/alarm.mp3',
+      loopAudio: true,
+      vibrate: true,
+      androidFullScreenIntent: true,
+      warningNotificationOnKill: false,
+      volumeSettings: const VolumeSettings.fixed(volume: 1.0),
+      notificationSettings: const NotificationSettings(
+        title: 'Hydrate Test',
+        body: 'This is a test alarm',
+        stopButton: 'Dismiss',
+      ),
+    );
+
+    await Alarm.set(alarmSettings: settings);
+
+    debugPrint('TEST ALARM SCHEDULED');
   }
 
   Future<void> _initializeNotifications() async {
     await NotificationService.instance.initialize();
 
-    const nativeAlarmChannel = MethodChannel('com.hydrate/alarm');
 
-    nativeAlarmChannel.setMethodCallHandler((call) async {
-      if (call.method != 'alarmTriggered') return;
-
-      final arguments = Map<String, dynamic>.from(call.arguments as Map);
-
-      final alarmId = arguments['alarmId'] as int?;
-      final label = arguments['label'] as String?;
-      final scheduledTime = arguments['scheduledTime'] as int?;
-
-      if (alarmId == null || label == null || scheduledTime == null) {
-        return;
-      }
-
-      debugPrint(
-        'HydrationAlarm: Flutter received native alarmTriggered for id=$alarmId',
-      );
-
-      final alarm = ActiveAlarm(
-        id: alarmId,
-        label: label,
-        scheduledTime: DateTime.fromMillisecondsSinceEpoch(scheduledTime),
-      );
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showAlarmRingingScreen(alarm);
-      });
-    });
+    
 
     NotificationService.instance.onResponse =
         AlarmService.instance.handleNotificationResponse;
 
     AlarmService.instance.onAlarmTriggered = _showAlarmRingingScreen;
-
-    
 
     final launchDetails = await NotificationService.instance.getLaunchDetails();
 
@@ -90,17 +99,7 @@ class _HydrateAppState extends State<HydrateApp> {
         });
       }
     }
-
-    final nativeAlarm = await AlarmService.instance.getInitialNativeAlarm();
-
-    if (nativeAlarm != null) {
-      debugPrint(
-        'HydrationAlarm: Flutter found initial native alarm id=${nativeAlarm.id}',
-      );
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showAlarmRingingScreen(nativeAlarm);
-      });
-    }
+    await _testAlarm();
   }
 
   void _showAlarmRingingScreen(ActiveAlarm alarm) {
