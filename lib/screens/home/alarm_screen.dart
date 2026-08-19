@@ -43,7 +43,7 @@ extension AlarmToneDisplay on AlarmTone {
   }
 }
 
-/// Mock model for a single hydration reminder schedule.
+/// Model for the user's single hydration reminder schedule.
 ///
 /// Structured so a real notification-scheduling model can replace this
 /// without touching the widgets that render it. [reminderTimes] is always
@@ -155,6 +155,10 @@ int equalIntervalStepMinutes(TimeOfDay start, TimeOfDay end, int count) {
 
 /// Alarm management screen — controls WHEN Hydrate reminds the user, as
 /// opposed to [HomeScreen] which is about today's progress.
+///
+/// A user has zero or one hydration alarm, never more. There is no
+/// "additional alarms" concept: the Create-alarm action only appears when
+/// there is no alarm yet, and disappears once one exists.
 class AlarmScreen extends StatefulWidget {
   const AlarmScreen({super.key});
 
@@ -166,7 +170,7 @@ class _AlarmScreenState extends State<AlarmScreen> {
   @override
   void initState() {
     super.initState();
-    _loadAlarms();
+    _loadAlarm();
   }
 
   List<DateTime> _toDateTimes(List<TimeOfDay> times) {
@@ -241,38 +245,42 @@ class _AlarmScreenState extends State<AlarmScreen> {
     return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
   }
 
-  List<HydrationAlarm> _alarms = [];
+  /// Zero or one alarm — never a list. This is the single source of truth
+  /// for whether the empty state or the alarm card renders.
+  HydrationAlarm? _alarm;
   bool _loading = true;
 
-  Future<void> _loadAlarms() async {
+  Future<void> _loadAlarm() async {
     try {
       final alarms = await _alarmService.getAlarms();
-      final loadedAlarms = alarms.map(_fromDto).toList();
 
-      // Show the persisted alarms first.
+      // Backend is the intended source of truth for "at most one alarm".
+      // If it ever returns more than one (e.g. legacy data from before this
+      // constraint existed), we only ever surface the first — we don't
+      // silently delete the rest here, since that's a backend-side cleanup
+      // decision, not something this screen should decide on its own.
+      final loaded = alarms.isNotEmpty ? _fromDto(alarms.first) : null;
+
       if (!mounted) return;
 
       setState(() {
-        _alarms = loadedAlarms;
+        _alarm = loaded;
         _loading = false;
       });
 
-      // Restore notifications separately.
-      for (final alarm in loadedAlarms) {
-        if (!alarm.enabled) continue;
-
+      if (loaded != null && loaded.enabled) {
         try {
           await AlarmService.instance.scheduleAlarm(
-            id: alarm.id,
-            label: alarm.label,
-            reminderTimes: _toDateTimes(alarm.reminderTimes),
+            id: loaded.id,
+            label: loaded.label,
+            reminderTimes: _toDateTimes(loaded.reminderTimes),
           );
         } catch (e) {
-          debugPrint('Failed to restore alarm ${alarm.id}: $e');
+          debugPrint('Failed to restore alarm ${loaded.id}: $e');
         }
       }
     } catch (e) {
-      debugPrint('Failed to load hydration alarms: $e');
+      debugPrint('Failed to load hydration alarm: $e');
 
       if (!mounted) return;
 
@@ -282,8 +290,9 @@ class _AlarmScreenState extends State<AlarmScreen> {
     }
   }
 
-  Future<void> _toggleAlarm(int index, bool value) async {
-    final alarm = _alarms[index];
+  Future<void> _toggleAlarm(bool value) async {
+    final alarm = _alarm;
+    if (alarm == null) return;
 
     final response = await _alarmService.toggleAlarm(alarm.id);
 
@@ -314,12 +323,12 @@ class _AlarmScreenState extends State<AlarmScreen> {
     if (!mounted) return;
 
     setState(() {
-      _alarms[index] = updatedAlarm;
+      _alarm = updatedAlarm;
     });
   }
 
-  Future<void> _openEditor({int? index}) async {
-    final existing = index != null ? _alarms[index] : null;
+  Future<void> _openEditor() async {
+    final existing = _alarm;
 
     final result = await Navigator.of(context).push<_AlarmEditorResult>(
       MaterialPageRoute(builder: (_) => _AlarmEditorScreen(initial: existing)),
@@ -328,16 +337,19 @@ class _AlarmScreenState extends State<AlarmScreen> {
     if (result == null || !mounted) return;
 
     if (result.deleted) {
-      if (index == null) return;
+      if (existing == null) return;
 
-      final alarm = _alarms[index];
-
+      // Cancel scheduled reminders BEFORE the backend delete, using the
+      // reminder count from the alarm being removed — this must happen
+      // even if the delete call below fails partway, so we never leave a
+      // dangling scheduled notification for an alarm the user asked to
+      // remove.
       await AlarmService.instance.cancelAlarm(
-        alarm.id,
-        reminderCount: alarm.reminderTimes.length,
+        existing.id,
+        reminderCount: existing.reminderTimes.length,
       );
 
-      final response = await _alarmService.deleteAlarm(alarm.id);
+      final response = await _alarmService.deleteAlarm(existing.id);
 
       if (!mounted) return;
 
@@ -349,22 +361,34 @@ class _AlarmScreenState extends State<AlarmScreen> {
       }
 
       setState(() {
-        _alarms.removeAt(index);
+        _alarm = null;
       });
 
       return;
     }
 
-    final alarm = result.alarm;
+    final edited = result.alarm;
 
-    if (alarm == null) return;
+    if (edited == null) return;
 
-    final dto = _toDto(alarm);
+    final dto = _toDto(edited);
 
     // ------------------------------------------------------------
-    // CREATE
+    // CREATE — only reachable when there was no alarm when the editor was
+    // opened. Guarded twice: the Create button itself only renders when
+    // _alarm is null, and this check catches the (unlikely but possible)
+    // race where an alarm appeared while the editor was open.
     // ------------------------------------------------------------
-    if (index == null) {
+    if (existing == null) {
+      if (_alarm != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('You already have a hydration alarm.'),
+          ),
+        );
+        return;
+      }
+
       final response = await _alarmService.createAlarm(
         label: dto.label,
         scheduleType: dto.scheduleType,
@@ -398,7 +422,7 @@ class _AlarmScreenState extends State<AlarmScreen> {
       if (!mounted) return;
 
       setState(() {
-        _alarms.add(savedAlarm);
+        _alarm = savedAlarm;
       });
 
       return;
@@ -407,8 +431,6 @@ class _AlarmScreenState extends State<AlarmScreen> {
     // ------------------------------------------------------------
     // EDIT
     // ------------------------------------------------------------
-    final oldAlarm = _alarms[index];
-
     final response = await _alarmService.updateAlarm(
       id: dto.id,
       label: dto.label,
@@ -435,7 +457,7 @@ class _AlarmScreenState extends State<AlarmScreen> {
     await AlarmService.instance.rescheduleAlarm(
       id: savedAlarm.id,
       label: savedAlarm.label,
-      oldReminderTimes: _toDateTimes(oldAlarm.reminderTimes),
+      oldReminderTimes: _toDateTimes(existing.reminderTimes),
       newReminderTimes: _toDateTimes(savedAlarm.reminderTimes),
     );
 
@@ -449,102 +471,85 @@ class _AlarmScreenState extends State<AlarmScreen> {
     if (!mounted) return;
 
     setState(() {
-      _alarms[index] = savedAlarm;
+      _alarm = savedAlarm;
     });
-  }
-
-  Future<void> _confirmDelete(int index) async {
-    final shouldDelete = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete alarm?'),
-        content: Text('Remove "${_alarms[index].label}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldDelete == true && mounted) {
-      setState(() => _alarms.removeAt(index));
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    final additionalAlarms = _alarms.length > 1
-        ? _alarms.sublist(1)
-        : const <HydrationAlarm>[];
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
+      backgroundColor: colorScheme.surface,
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  Text(
-                    'Alarms',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : CustomScrollView(
+                slivers: [
+                  SliverPadding(
+                    // Bottom inset stays large — it's clearance for the
+                    // floating glass bottom nav bar stacked above this
+                    // screen in MainScreen, not decorative whitespace.
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+                        Text(
+                          'Alarms',
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'When Hydrate reminds you to drink',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurface.withValues(
+                              alpha: 0.6,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        if (_alarm != null)
+                          _AlarmCard(
+                            alarm: _alarm!,
+                            onToggle: _toggleAlarm,
+                            onTap: _openEditor,
+                          )
+                        else
+                          _EmptyAlarmState(onCreate: _openEditor),
+                      ]),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'When Hydrate reminds you to drink',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  if (_alarms.isNotEmpty)
-                    _AlarmCard(
-                      alarm: _alarms[0],
-                      primary: true,
-                      onToggle: (v) => _toggleAlarm(0, v),
-                      onTap: () => _openEditor(index: 0),
-                    ),
-                  const SizedBox(height: 28),
-                  Text(
-                    'Additional alarms',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  for (var i = 0; i < additionalAlarms.length; i++)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _AlarmCard(
-                        alarm: additionalAlarms[i],
-                        primary: false,
-                        onToggle: (v) => _toggleAlarm(i + 1, v),
-                        onTap: () => _openEditor(index: i + 1),
-                        onDelete: () => _confirmDelete(i + 1),
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  _AddAlarmButton(onTap: () => _openEditor()),
-                ]),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
+    );
+  }
+}
+
+class _EmptyAlarmState extends StatelessWidget {
+  const _EmptyAlarmState({required this.onCreate});
+
+  final VoidCallback onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'No hydration alarm set up yet.',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(height: 14),
+        _AddAlarmButton(onTap: onCreate),
+      ],
     );
   }
 }
@@ -552,17 +557,13 @@ class _AlarmScreenState extends State<AlarmScreen> {
 class _AlarmCard extends StatelessWidget {
   const _AlarmCard({
     required this.alarm,
-    required this.primary,
     required this.onToggle,
     required this.onTap,
-    this.onDelete,
   });
 
   final HydrationAlarm alarm;
-  final bool primary;
   final ValueChanged<bool> onToggle;
   final VoidCallback onTap;
-  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -574,80 +575,65 @@ class _AlarmCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(24),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
+        child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: primary
-                ? colorScheme.primaryContainer.withValues(alpha: 0.35)
-                : colorScheme.onSurface.withValues(alpha: 0.04),
+            color: colorScheme.primaryContainer.withValues(alpha: 0.35),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: colorScheme.onSurface.withValues(alpha: 0.06),
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      alarm.label,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 200),
+            opacity: alarm.enabled ? 1 : 0.55,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        alarm.label,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                  ),
-                  if (onDelete != null)
-                    IconButton(
-                      onPressed: onDelete,
-                      icon: Icon(
-                        Icons.delete_outline_rounded,
-                        size: 20,
-                        color: colorScheme.onSurface.withValues(alpha: 0.4),
+                    Switch(
+                      value: alarm.enabled,
+                      onChanged: onToggle,
+                      activeTrackColor: colorScheme.primary,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _AlarmDetail(
+                  icon: Icons.repeat_rounded,
+                  label: 'Schedule',
+                  value: alarm.scheduleSummary(context),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _AlarmDetail(
+                        icon: Icons.wb_sunny_outlined,
+                        label: 'From',
+                        value: alarm.firstReminder.format(context),
                       ),
-                      visualDensity: VisualDensity.compact,
                     ),
-                  Switch(
-                    value: alarm.enabled,
-                    onChanged: onToggle,
-                    activeTrackColor: colorScheme.primary,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _AlarmDetail(
-                      icon: Icons.repeat_rounded,
-                      label: 'Schedule',
-                      value: alarm.scheduleSummary(context),
+                    Expanded(
+                      child: _AlarmDetail(
+                        icon: Icons.nights_stay_outlined,
+                        label: 'Until',
+                        value: alarm.lastReminder.format(context),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _AlarmDetail(
-                      icon: Icons.wb_sunny_outlined,
-                      label: 'From',
-                      value: alarm.firstReminder.format(context),
-                    ),
-                  ),
-                  Expanded(
-                    child: _AlarmDetail(
-                      icon: Icons.nights_stay_outlined,
-                      label: 'Until',
-                      value: alarm.lastReminder.format(context),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -739,7 +725,7 @@ class _AddAlarmButton extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                'Add alarm',
+                'Create alarm',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: colorScheme.onSurface.withValues(alpha: 0.6),
@@ -754,7 +740,7 @@ class _AddAlarmButton extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Alarm editor — multi-step creation/edit flow
+// Alarm editor — multi-step creation/edit flow (unchanged)
 // ---------------------------------------------------------------------------
 
 /// What the editor screen handed back: either a saved alarm, a delete
