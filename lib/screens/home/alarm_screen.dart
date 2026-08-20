@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../services/hydration_alarm_service.dart';
 import '../../services/alarm_service.dart';
+import '../../services/hydration_alarm_local_storage.dart';
+import '../../services/hydration_service.dart';
 
 enum AlarmScheduleType { equalIntervals, custom }
 
@@ -49,7 +53,10 @@ extension AlarmToneDisplay on AlarmTone {
 /// without touching the widgets that render it. [reminderTimes] is always
 /// the source of truth for what actually fires — it's computed once (either
 /// evenly spaced or manually picked) rather than left for a future
-/// notification system to derive from [startTime]/[endTime].
+/// notification system to derive from [startTime]/[endTime]. It is also
+/// the same source of truth the "Upcoming alerts" section reads from, so
+/// that section can never show a time the actual Android alarm doesn't
+/// match.
 class HydrationAlarm {
   const HydrationAlarm({
     required this.id,
@@ -92,9 +99,9 @@ class HydrationAlarm {
     return 'Custom · ${reminderTimes.length} reminders';
   }
 
-  HydrationAlarm copyWith({bool? enabled}) {
+  HydrationAlarm copyWith({String? id, bool? enabled}) {
     return HydrationAlarm(
-      id: id,
+      id: id ?? this.id,
       label: label,
       scheduleType: scheduleType,
       reminderTimes: reminderTimes,
@@ -156,9 +163,20 @@ int equalIntervalStepMinutes(TimeOfDay start, TimeOfDay end, int count) {
 /// Alarm management screen — controls WHEN Hydrate reminds the user, as
 /// opposed to [HomeScreen] which is about today's progress.
 ///
-/// A user has zero or one hydration alarm, never more. There is no
-/// "additional alarms" concept: the Create-alarm action only appears when
-/// there is no alarm yet, and disappears once one exists.
+/// A user has zero or one hydration alarm, never more. Local storage
+/// (`HydrationAlarmLocalStorage`) is the immediate source of truth for
+/// what this screen shows and what `AlarmService` schedules on-device —
+/// the backend (`HydrationAlarmService`) is synchronized in the
+/// background afterward and never blocks the UI.
+///
+/// One real subtlety this file handles explicitly: `HydrationAlarmService
+/// .createAlarm()` takes no client-supplied id — the backend always mints
+/// its own. Since the locally-generated id is what `AlarmService` already
+/// used to schedule native alarms by the time the backend responds, every
+/// subsequent edit/toggle/delete needs to target whichever id is
+/// currently canonical, not necessarily the one it started with. See
+/// `_pendingCreateSync` / `_resolveSyncId` / the reconciliation step in
+/// `_syncCreateToBackend`.
 class AlarmScreen extends StatefulWidget {
   const AlarmScreen({super.key});
 
@@ -167,11 +185,23 @@ class AlarmScreen extends StatefulWidget {
 }
 
 class _AlarmScreenState extends State<AlarmScreen> {
+  final HydrationAlarmService _alarmService = HydrationAlarmService();
+  final HydrationAlarmLocalStorage _localStorage = HydrationAlarmLocalStorage();
+
+  HydrationAlarm? _alarm;
+
+  /// Non-null only while a just-created alarm's backend id hasn't been
+  /// confirmed yet. Resolves to the backend's assigned id, or `null` if
+  /// the create failed outright (nothing to sync against).
+  Future<String?>? _pendingCreateSync;
+
   @override
   void initState() {
     super.initState();
-    _loadAlarm();
+    _loadAlarmLocalFirst();
   }
+
+  // --- Time / DTO conversion helpers -----------------------------------
 
   List<DateTime> _toDateTimes(List<TimeOfDay> times) {
     return times.map(_nextOccurrence).toList();
@@ -232,8 +262,6 @@ class _AlarmScreenState extends State<AlarmScreen> {
     );
   }
 
-  final HydrationAlarmService _alarmService = HydrationAlarmService();
-
   String _timeToString(TimeOfDay time) {
     return '${time.hour.toString().padLeft(2, '0')}:'
         '${time.minute.toString().padLeft(2, '0')}';
@@ -241,91 +269,226 @@ class _AlarmScreenState extends State<AlarmScreen> {
 
   TimeOfDay _stringToTime(String value) {
     final parts = value.split(':');
-
     return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
   }
 
-  /// Zero or one alarm — never a list. This is the single source of truth
-  /// for whether the empty state or the alarm card renders.
-  HydrationAlarm? _alarm;
-  bool _loading = true;
+  // --- Startup: local-first ----------------------------------------------
 
-  Future<void> _loadAlarm() async {
-    try {
-      final alarms = await _alarmService.getAlarms();
+  Future<void> _loadAlarmLocalFirst() async {
+    // 1. Local storage first. SharedPreferences, no network — this is the
+    // ONLY thing the first frame after startup waits on.
+    final local = await _localStorage.loadAlarm();
 
-      // Backend is the intended source of truth for "at most one alarm".
-      // If it ever returns more than one (e.g. legacy data from before this
-      // constraint existed), we only ever surface the first — we don't
-      // silently delete the rest here, since that's a backend-side cleanup
-      // decision, not something this screen should decide on its own.
-      final loaded = alarms.isNotEmpty ? _fromDto(alarms.first) : null;
+    if (!mounted) return;
+    setState(() => _alarm = local);
 
-      if (!mounted) return;
-
-      setState(() {
-        _alarm = loaded;
-        _loading = false;
-      });
-
-      if (loaded != null && loaded.enabled) {
-        try {
-          await AlarmService.instance.scheduleAlarm(
-            id: loaded.id,
-            label: loaded.label,
-            reminderTimes: _toDateTimes(loaded.reminderTimes),
-          );
-        } catch (e) {
-          debugPrint('Failed to restore alarm ${loaded.id}: $e');
-        }
+    // 2. Restore Android scheduling from what's on-device, if enabled.
+    if (local != null && local.enabled) {
+      try {
+        await AlarmService.instance.scheduleAlarm(
+          id: local.id,
+          label: local.label,
+          reminderTimes: _toDateTimes(local.reminderTimes),
+        );
+      } catch (e) {
+        debugPrint('Failed to restore alarm ${local.id}: $e');
       }
-    } catch (e) {
-      debugPrint('Failed to load hydration alarm: $e');
+    }
 
-      if (!mounted) return;
-
-      setState(() {
-        _loading = false;
-      });
+    // 3. Backend touched only now, only in the background, and only to
+    // cover "nothing local yet" (e.g. a fresh install / new device) — a
+    // normal warm start never calls the backend just to display the
+    // alarm. Every create/edit/toggle/delete below syncs itself
+    // individually; this is purely a one-time catch-up on cold start.
+    // Alarms loaded this way already carry the backend's real `_id`
+    // (see HydrationAlarmDto.fromJson), so there's no reconciliation
+    // needed here.
+    if (local == null) {
+      unawaited(_syncFromBackendIfEmpty());
     }
   }
 
-  Future<void> _toggleAlarm(bool value) async {
-    final alarm = _alarm;
-    if (alarm == null) return;
+  Future<void> _syncFromBackendIfEmpty() async {
+    try {
+      final alarms = await _alarmService.getAlarms();
+      if (!mounted || _alarm != null || alarms.isEmpty) return;
 
-    final response = await _alarmService.toggleAlarm(alarm.id);
+      final remote = _fromDto(alarms.first);
+      await _localStorage.saveAlarm(remote);
 
-    if (!mounted) return;
+      if (!mounted) return;
+      setState(() => _alarm = remote);
 
-    if (!response.success || response.alarm == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(response.message)));
-      return;
+      if (remote.enabled) {
+        await AlarmService.instance.scheduleAlarm(
+          id: remote.id,
+          label: remote.label,
+          reminderTimes: _toDateTimes(remote.reminderTimes),
+        );
+      }
+    } catch (e) {
+      debugPrint('Background alarm sync failed (Render may be asleep): $e');
     }
+  }
 
-    final updatedAlarm = _fromDto(response.alarm!);
+  // --- Toggle (enable/disable) --------------------------------------------
 
-    if (updatedAlarm.enabled) {
+  Future<void> _toggleAlarm(bool value) async {
+    final current = _alarm;
+    if (current == null) return;
+
+    final updated = current.copyWith(enabled: value);
+
+    // Local-first: persist, reflect in the UI, and (de)schedule on-device
+    // BEFORE anything touches the network.
+    await _localStorage.saveAlarm(updated);
+    if (!mounted) return;
+    setState(() => _alarm = updated);
+
+    if (value) {
       await AlarmService.instance.scheduleAlarm(
-        id: updatedAlarm.id,
-        label: updatedAlarm.label,
-        reminderTimes: _toDateTimes(updatedAlarm.reminderTimes),
+        id: updated.id,
+        label: updated.label,
+        reminderTimes: _toDateTimes(updated.reminderTimes),
       );
     } else {
       await AlarmService.instance.cancelAlarm(
-        updatedAlarm.id,
-        reminderCount: updatedAlarm.reminderTimes.length,
+        updated.id,
+        reminderCount: updated.reminderTimes.length,
       );
     }
 
-    if (!mounted) return;
-
-    setState(() {
-      _alarm = updatedAlarm;
-    });
+    unawaited(_syncToBackend(updated));
   }
+
+  // --- Backend id resolution (see class doc comment) ----------------------
+
+  /// If a create for this same alarm is still resolving its backend id,
+  /// waits for it and returns that id. Otherwise [localId] is already
+  /// canonical (either it always was — an alarm loaded from the backend —
+  /// or a prior create already reconciled it). Returns `null` only when a
+  /// create was pending and it failed, meaning there's nothing on the
+  /// backend to sync against yet.
+  Future<String?> _resolveSyncId(String localId) async {
+    final pending = _pendingCreateSync;
+    if (pending == null) return localId;
+    return pending;
+  }
+
+  // --- Backend sync helpers --------------------------------------------------
+  //
+  // Each of these is fire-and-forget from the caller's perspective (never
+  // awaited by anything that would block the UI) and never mutates local
+  // state or _alarm on failure — a slow/asleep/unreachable Render instance
+  // only means the change hasn't been mirrored to MongoDB yet, not that
+  // the user's on-device alarm changes anything about what they see or
+  // what actually rings.
+
+  Future<void> _syncToBackend(HydrationAlarm alarm) async {
+    final id = await _resolveSyncId(alarm.id);
+    if (id == null) {
+      debugPrint('Skipping backend sync — the create this alarm depended on never reached the backend.');
+      return;
+    }
+
+    final dto = _toDto(alarm);
+    try {
+      final response = await _alarmService.updateAlarm(
+        id: id,
+        label: dto.label,
+        scheduleType: dto.scheduleType,
+        reminderTimes: dto.reminderTimes,
+        enabled: dto.enabled,
+        startTime: dto.startTime,
+        endTime: dto.endTime,
+        intervalMinutes: dto.intervalMinutes,
+        tone: dto.tone,
+      );
+      if (!response.success) {
+        debugPrint('Backend sync failed: ${response.message}');
+      }
+    } catch (e) {
+      debugPrint('Backend sync failed (Render may be asleep): $e');
+    }
+  }
+
+  /// Creates the alarm on the backend and returns the id it was assigned.
+  /// `HydrationAlarmService.createAlarm()` has no id parameter — the
+  /// backend always mints its own — so if that id differs from the one
+  /// used locally, this reconciles local storage, Android scheduling, and
+  /// UI state to the backend's id. Returns `null` on failure.
+  Future<String?> _syncCreateToBackend(HydrationAlarm alarm) async {
+    final dto = _toDto(alarm);
+    try {
+      final response = await _alarmService.createAlarm(
+        label: dto.label,
+        scheduleType: dto.scheduleType,
+        reminderTimes: dto.reminderTimes,
+        enabled: dto.enabled,
+        startTime: dto.startTime,
+        endTime: dto.endTime,
+        intervalMinutes: dto.intervalMinutes,
+        tone: dto.tone,
+      );
+
+      if (!response.success || response.alarm == null) {
+        debugPrint('Backend create sync failed: ${response.message}');
+        return null;
+      }
+
+      final backendId = response.alarm!.id;
+
+      if (backendId != alarm.id) {
+        await _reconcileAlarmId(oldId: alarm.id, newId: backendId);
+      }
+
+      return backendId;
+    } catch (e) {
+      debugPrint('Backend create sync failed (Render may be asleep): $e');
+      return null;
+    }
+  }
+
+  /// Rewrites local storage, Android scheduling, and UI state to use
+  /// [newId] instead of [oldId] — but only if the user still has the same
+  /// alarm they created (they may have edited it further, in which case
+  /// this picks up the LATEST content rather than the stale snapshot
+  /// originally sent to the backend; or they may have deleted it, in
+  /// which case there's nothing local left to reconcile — the delete's
+  /// own background sync, via [_resolveSyncId], is what cleans up the
+  /// now-orphaned backend record in that case).
+  Future<void> _reconcileAlarmId({
+    required String oldId,
+    required String newId,
+  }) async {
+    final current = _alarm;
+    if (current == null || current.id != oldId) return;
+
+    final reconciled = current.copyWith(id: newId);
+
+    // Cancel whatever might exist under the old id — harmless no-op if
+    // there's nothing there (e.g. the user had already disabled it).
+    await AlarmService.instance.cancelAlarm(
+      oldId,
+      reminderCount: current.reminderTimes.length,
+    );
+
+    if (current.enabled) {
+      await AlarmService.instance.scheduleAlarm(
+        id: newId,
+        label: reconciled.label,
+        reminderTimes: _toDateTimes(reconciled.reminderTimes),
+      );
+    }
+
+    await _localStorage.saveAlarm(reconciled);
+
+    if (mounted) {
+      setState(() => _alarm = reconciled);
+    }
+  }
+
+  // --- Editor entry point ----------------------------------------------------
 
   Future<void> _openEditor() async {
     final existing = _alarm;
@@ -338,191 +501,161 @@ class _AlarmScreenState extends State<AlarmScreen> {
 
     if (result.deleted) {
       if (existing == null) return;
-
-      // Cancel scheduled reminders BEFORE the backend delete, using the
-      // reminder count from the alarm being removed — this must happen
-      // even if the delete call below fails partway, so we never leave a
-      // dangling scheduled notification for an alarm the user asked to
-      // remove.
-      await AlarmService.instance.cancelAlarm(
-        existing.id,
-        reminderCount: existing.reminderTimes.length,
-      );
-
-      final response = await _alarmService.deleteAlarm(existing.id);
-
-      if (!mounted) return;
-
-      if (!response.success) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(response.message)));
-        return;
-      }
-
-      setState(() {
-        _alarm = null;
-      });
-
+      await _deleteAlarm(existing);
       return;
     }
 
     final edited = result.alarm;
-
     if (edited == null) return;
 
-    final dto = _toDto(edited);
-
-    // ------------------------------------------------------------
-    // CREATE — only reachable when there was no alarm when the editor was
-    // opened. Guarded twice: the Create button itself only renders when
-    // _alarm is null, and this check catches the (unlikely but possible)
-    // race where an alarm appeared while the editor was open.
-    // ------------------------------------------------------------
     if (existing == null) {
-      if (_alarm != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('You already have a hydration alarm.'),
-          ),
-        );
-        return;
-      }
+      await _createAlarm(edited);
+    } else {
+      await _editAlarm(edited);
+    }
+  }
 
-      final response = await _alarmService.createAlarm(
-        label: dto.label,
-        scheduleType: dto.scheduleType,
-        reminderTimes: dto.reminderTimes,
-        enabled: dto.enabled,
-        startTime: dto.startTime,
-        endTime: dto.endTime,
-        intervalMinutes: dto.intervalMinutes,
-        tone: dto.tone,
+  Future<void> _createAlarm(HydrationAlarm alarm) async {
+    // Guards against a second alarm: the Create button only ever renders
+    // when _alarm is null, and this re-checks in case something changed
+    // (e.g. the background empty-state sync above) while the editor was
+    // open.
+    if (_alarm != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You already have a hydration alarm.')),
       );
-
-      if (!mounted) return;
-
-      if (!response.success || response.alarm == null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(response.message)));
-        return;
-      }
-
-      final savedAlarm = _fromDto(response.alarm!);
-
-      if (savedAlarm.enabled) {
-        await AlarmService.instance.scheduleAlarm(
-          id: savedAlarm.id,
-          label: savedAlarm.label,
-          reminderTimes: _toDateTimes(savedAlarm.reminderTimes),
-        );
-      }
-
-      if (!mounted) return;
-
-      setState(() {
-        _alarm = savedAlarm;
-      });
-
       return;
     }
 
-    // ------------------------------------------------------------
-    // EDIT
-    // ------------------------------------------------------------
-    final response = await _alarmService.updateAlarm(
-      id: dto.id,
-      label: dto.label,
-      scheduleType: dto.scheduleType,
-      reminderTimes: dto.reminderTimes,
-      enabled: dto.enabled,
-      startTime: dto.startTime,
-      endTime: dto.endTime,
-      intervalMinutes: dto.intervalMinutes,
-      tone: dto.tone,
-    );
-
+    await _localStorage.saveAlarm(alarm);
     if (!mounted) return;
+    setState(() => _alarm = alarm);
 
-    if (!response.success || response.alarm == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(response.message)));
-      return;
+    if (alarm.enabled) {
+      await AlarmService.instance.scheduleAlarm(
+        id: alarm.id,
+        label: alarm.label,
+        reminderTimes: _toDateTimes(alarm.reminderTimes),
+      );
     }
 
-    final savedAlarm = _fromDto(response.alarm!);
+    final syncFuture = _syncCreateToBackend(alarm);
+    _pendingCreateSync = syncFuture;
+    unawaited(
+      syncFuture.whenComplete(() {
+        if (identical(_pendingCreateSync, syncFuture)) {
+          _pendingCreateSync = null;
+        }
+      }),
+    );
+  }
+
+  Future<void> _editAlarm(HydrationAlarm newAlarm) async {
+    final oldAlarm = _alarm;
+    if (oldAlarm == null) return;
+
+    await _localStorage.saveAlarm(newAlarm);
+    if (!mounted) return;
+    setState(() => _alarm = newAlarm);
 
     await AlarmService.instance.rescheduleAlarm(
-      id: savedAlarm.id,
-      label: savedAlarm.label,
-      oldReminderTimes: _toDateTimes(existing.reminderTimes),
-      newReminderTimes: _toDateTimes(savedAlarm.reminderTimes),
+      id: newAlarm.id,
+      label: newAlarm.label,
+      oldReminderTimes: _toDateTimes(oldAlarm.reminderTimes),
+      newReminderTimes: _toDateTimes(newAlarm.reminderTimes),
     );
 
-    if (!savedAlarm.enabled) {
+    if (!newAlarm.enabled) {
       await AlarmService.instance.cancelAlarm(
-        savedAlarm.id,
-        reminderCount: savedAlarm.reminderTimes.length,
+        newAlarm.id,
+        reminderCount: newAlarm.reminderTimes.length,
       );
     }
 
-    if (!mounted) return;
+    unawaited(_syncToBackend(newAlarm));
+  }
 
-    setState(() {
-      _alarm = savedAlarm;
-    });
+  Future<void> _deleteAlarm(HydrationAlarm alarm) async {
+    // Local storage clear + Android cancellation both happen — and
+    // complete — before the UI updates or the backend is touched. A
+    // failed/slow backend delete must never leave the alarm reappearing
+    // or still ringing.
+    await _localStorage.deleteAlarm();
+    await AlarmService.instance.cancelAlarm(
+      alarm.id,
+      reminderCount: alarm.reminderTimes.length,
+    );
+
+    if (!mounted) return;
+    setState(() => _alarm = null);
+
+    unawaited(_syncDelete(alarm.id));
+  }
+
+  Future<void> _syncDelete(String localId) async {
+    // If a create for this alarm is still resolving, wait for the real
+    // backend id first — otherwise a delete that happens moments after a
+    // create would target an id the backend has never heard of, leaving
+    // an orphaned record behind once the create finally lands.
+    final id = await _resolveSyncId(localId);
+    if (id == null) return; // create failed; nothing was ever persisted.
+
+    try {
+      final response = await _alarmService.deleteAlarm(id);
+      if (!response.success) {
+        debugPrint('Backend delete sync failed: ${response.message}');
+      }
+    } catch (e) {
+      debugPrint('Backend delete sync failed (Render may be asleep): $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final alarm = _alarm;
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
       body: SafeArea(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : CustomScrollView(
-                slivers: [
-                  SliverPadding(
-                    // Bottom inset stays large — it's clearance for the
-                    // floating glass bottom nav bar stacked above this
-                    // screen in MainScreen, not decorative whitespace.
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
-                    sliver: SliverList(
-                      delegate: SliverChildListDelegate([
-                        Text(
-                          'Alarms',
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'When Hydrate reminds you to drink',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSurface.withValues(
-                              alpha: 0.6,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        if (_alarm != null)
-                          _AlarmCard(
-                            alarm: _alarm!,
-                            onToggle: _toggleAlarm,
-                            onTap: _openEditor,
-                          )
-                        else
-                          _EmptyAlarmState(onCreate: _openEditor),
-                      ]),
+        child: CustomScrollView(
+          slivers: [
+            SliverPadding(
+              // Bottom inset stays large — it's clearance for the floating
+              // glass bottom nav bar stacked above this screen in
+              // MainScreen, not decorative whitespace.
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  Text(
+                    'Alarms',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                ],
+                  const SizedBox(height: 4),
+                  Text(
+                    'When Hydrate reminds you to drink',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (alarm != null)
+                    _AlarmCard(
+                      alarm: alarm,
+                      onToggle: _toggleAlarm,
+                      onTap: _openEditor,
+                    )
+                  else
+                    _EmptyAlarmState(onCreate: _openEditor),
+                  if (alarm != null) _UpcomingAlertsSection(alarm: alarm),
+                ]),
               ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -734,6 +867,239 @@ class _AddAlarmButton extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Upcoming alerts — reads the SAME HydrationAlarm.reminderTimes used to
+// schedule the actual Android alarms, plus the existing locally-cached
+// DailyHydration from HydrationService, to show today's remaining
+// reminders and a live-recalculated per-reminder water amount.
+// ---------------------------------------------------------------------------
+
+class _UpcomingAlertsSection extends StatefulWidget {
+  const _UpcomingAlertsSection({required this.alarm});
+
+  final HydrationAlarm alarm;
+
+  @override
+  State<_UpcomingAlertsSection> createState() => _UpcomingAlertsSectionState();
+}
+
+class _UpcomingAlertsSectionState extends State<_UpcomingAlertsSection> {
+  final HydrationService _hydrationService = HydrationService();
+
+  DailyHydration? _today;
+  Timer? _refreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+    // Local cache read only (no network) — this just needs to notice
+    // changes made elsewhere (water logged on Home, a passed reminder
+    // time) without any cross-screen event plumbing.
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
+  }
+
+  @override
+  void didUpdateWidget(covariant _UpcomingAlertsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.alarm.reminderTimes != widget.alarm.reminderTimes ||
+        oldWidget.alarm.enabled != widget.alarm.enabled) {
+      _refresh();
+    }
+  }
+
+  Future<void> _refresh() async {
+    // getCachedToday() reads HydrationService's existing local
+    // SharedPreferences cache (same cache profile_screen.dart / the goal
+    // editor already read/wrote) — it never makes a network request, so
+    // this can never block on Render.
+    final cached = await _hydrationService.getCachedToday();
+    if (!mounted) return;
+    setState(() => _today = cached);
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  List<TimeOfDay> get _upcomingTimes {
+    final now = TimeOfDay.now();
+    final nowMinutes = now.hour * 60 + now.minute;
+    return widget.alarm.reminderTimes
+        .where((t) => (t.hour * 60 + t.minute) > nowMinutes)
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    // An upcoming-alerts list for a disabled alarm would be misleading —
+    // nothing will actually ring, so nothing "upcoming" to show.
+    if (!widget.alarm.enabled) {
+      return const SizedBox.shrink();
+    }
+
+    final upcoming = _upcomingTimes;
+
+    final today = _today;
+    final hasHydrationData = today != null;
+    final goalReached = hasHydrationData && today.intakeMl >= today.goalMl;
+
+    int? perAlertMl;
+    if (hasHydrationData && !goalReached && upcoming.isNotEmpty) {
+      final remainingRaw = today.goalMl - today.intakeMl;
+      final remaining = remainingRaw < 0 ? 0.0 : remainingRaw.toDouble();
+      final rawPerAlert = remaining / upcoming.length;
+      var rounded = (rawPerAlert / 50).round() * 50;
+      if (rounded == 0 && remaining > 0) rounded = remaining.round();
+      perAlertMl = rounded;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 24),
+        Text(
+          'Upcoming alerts',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (upcoming.isEmpty)
+          const _CompactNotice(
+            icon: Icons.check_circle_outline_rounded,
+            title: 'No more alerts today',
+            subtitle: 'Next reminders start tomorrow.',
+          )
+        else
+          _SettingsCard(
+            children: [
+              for (var i = 0; i < upcoming.length; i++) ...[
+                _UpcomingAlertRow(
+                  time: upcoming[i],
+                  amountLabel: goalReached
+                      ? 'Goal reached'
+                      : perAlertMl != null
+                          ? '$perAlertMl ml'
+                          : '—',
+                ),
+                if (i != upcoming.length - 1) _RowDivider(),
+              ],
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+class _CompactNotice extends StatelessWidget {
+  const _CompactNotice({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.onSurface.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: colorScheme.onSurface.withValues(alpha: 0.06),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: colorScheme.onSurface.withValues(alpha: 0.5)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurface.withValues(alpha: 0.55),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UpcomingAlertRow extends StatelessWidget {
+  const _UpcomingAlertRow({required this.time, required this.amountLabel});
+
+  final TimeOfDay time;
+  final String amountLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Icon(Icons.water_drop_outlined, size: 18, color: colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  time.format(context),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  'Drink water',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            amountLabel,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: colorScheme.primary,
+            ),
+          ),
+        ],
       ),
     );
   }
