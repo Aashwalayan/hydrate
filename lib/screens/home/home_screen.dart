@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../services/hydration_service.dart';
 import '../../widgets/hydration_progress.dart';
+import '../../services/hydration_alarm_local_storage.dart';
+import '../../services/hydration_reminder_utils.dart';
+
+import 'alarm_screen.dart';
 
 /// Primary dashboard for today's hydration.
 ///
@@ -32,12 +36,11 @@ class _HomeScreenState extends State<HomeScreen> {
   // Reminder mock - will be replaced with real reminder logic next.
   // -------------------------------------------------------------------------
 
-  static const Duration _mockReminderInterval = Duration(
-    minutes: 42,
-    seconds: 18,
-  );
+  final HydrationAlarmLocalStorage _alarmStorage = HydrationAlarmLocalStorage();
 
-  int _reminderSecondsRemaining = _mockReminderInterval.inSeconds;
+  HydrationAlarm? _alarm;
+  NextHydrationReminder? _nextReminder;
+
   Timer? _countdownTimer;
   bool _justSkipped = false;
 
@@ -47,10 +50,64 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _loadUserData();
     _loadHydrationData();
+    _loadAlarm();
+  }
 
-    // Still mock for now. We'll replace this with the actual reminder
-    // settings/notification system after hydration tracking is working.
-    _startCountdown();
+  Future<void> _loadAlarm() async {
+    final alarm = await _alarmStorage.loadAlarm();
+
+    if (!mounted) return;
+
+    setState(() {
+      _alarm = alarm;
+    });
+
+    _refreshReminder();
+
+    _countdownTimer?.cancel();
+
+    if (alarm != null && alarm.enabled) {
+      _countdownTimer = Timer.periodic(
+        const Duration(seconds: 1),
+        (_) => _refreshReminder(),
+      );
+    }
+  }
+
+  void _refreshReminder() {
+    final alarm = _alarm;
+
+    if (alarm == null || !alarm.enabled) {
+      if (mounted) {
+        setState(() => _nextReminder = null);
+      }
+      return;
+    }
+
+    final reminder = calculateNextHydrationReminder(
+      alarm: alarm,
+      today: _today,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _nextReminder = reminder;
+    });
+  }
+
+  void _handleSkip() {
+    setState(() {
+      _justSkipped = true;
+    });
+
+    Future.delayed(const Duration(milliseconds: 900), () {
+      if (mounted) {
+        setState(() {
+          _justSkipped = false;
+        });
+      }
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -83,7 +140,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Good evening';
   }
 
-
   Future<void> _loadHydrationData() async {
     final service = HydrationService();
 
@@ -96,6 +152,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _isLoading = false;
         _errorMessage = null;
       });
+      _refreshReminder();
     }
 
     // 2. Fetch fresh data from the backend.
@@ -109,6 +166,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _isLoading = false;
         _errorMessage = null;
       });
+      _refreshReminder();
     } catch (e) {
       debugPrint('Hydration loading error: $e');
 
@@ -143,6 +201,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         _today = updatedToday;
+        _refreshReminder();
         _isAddingWater = false;
       });
     } catch (e) {
@@ -175,44 +234,11 @@ class _HomeScreenState extends State<HomeScreen> {
     await _addWater(amount);
   }
 
-
-  void _startCountdown() {
-    _countdownTimer?.cancel();
-
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) return;
-
-      setState(() {
-        if (_reminderSecondsRemaining <= 0) {
-          _reminderSecondsRemaining = _mockReminderInterval.inSeconds;
-        } else {
-          _reminderSecondsRemaining -= 1;
-        }
-      });
-    });
-  }
-
-  void _handleSkip() {
-    setState(() {
-      _justSkipped = true;
-      _reminderSecondsRemaining = _mockReminderInterval.inSeconds;
-    });
-
-    Future.delayed(const Duration(milliseconds: 900), () {
-      if (mounted) {
-        setState(() {
-          _justSkipped = false;
-        });
-      }
-    });
-  }
-
   @override
   void dispose() {
     _countdownTimer?.cancel();
     super.dispose();
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -256,8 +282,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 24),
 
                   _NextReminderCard(
-                    secondsRemaining: _reminderSecondsRemaining,
-                    totalSeconds: _mockReminderInterval.inSeconds,
+                    reminder: _nextReminder,
                     justSkipped: _justSkipped,
                     onSkip: _handleSkip,
                   ),
@@ -309,7 +334,6 @@ class _Greeting extends StatelessWidget {
   }
 }
 
-
 class _ErrorCard extends StatelessWidget {
   const _ErrorCard({required this.message, required this.onRetry});
 
@@ -346,8 +370,6 @@ class _ErrorCard extends StatelessWidget {
     );
   }
 }
-
-
 
 class _AddWaterButton extends StatelessWidget {
   const _AddWaterButton({required this.onTap, required this.isLoading});
@@ -399,7 +421,6 @@ class _AddWaterButton extends StatelessWidget {
     );
   }
 }
-
 
 class _AddWaterSheet extends StatefulWidget {
   const _AddWaterSheet();
@@ -455,9 +476,7 @@ class _AddWaterSheetState extends State<_AddWaterSheet> {
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
         decoration: BoxDecoration(
           color: colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(28),
-          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           border: Border(
             top: BorderSide(
               color: colorScheme.onSurface.withValues(alpha: 0.08),
@@ -500,8 +519,7 @@ class _AddWaterSheetState extends State<_AddWaterSheet> {
                       onTap: () => _selectPreset(_quickAmounts[i]),
                     ),
                   ),
-                  if (i != _quickAmounts.length - 1)
-                    const SizedBox(width: 8),
+                  if (i != _quickAmounts.length - 1) const SizedBox(width: 8),
                 ],
               ],
             ),
@@ -583,7 +601,6 @@ class _AddWaterSheetState extends State<_AddWaterSheet> {
   }
 }
 
-
 class _AmountChip extends StatelessWidget {
   const _AmountChip({
     required this.label,
@@ -632,32 +649,38 @@ class _AmountChip extends StatelessWidget {
   }
 }
 
-
 class _NextReminderCard extends StatelessWidget {
   const _NextReminderCard({
-    required this.secondsRemaining,
-    required this.totalSeconds,
+    required this.reminder,
     required this.justSkipped,
     required this.onSkip,
   });
 
-  final int secondsRemaining;
-  final int totalSeconds;
+  final NextHydrationReminder? reminder;
   final bool justSkipped;
   final VoidCallback onSkip;
 
-  String get _formatted {
-    final minutes = secondsRemaining ~/ 60;
-    final seconds = secondsRemaining % 60;
+  String _formatDuration(int seconds) {
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    final remainingSeconds = seconds % 60;
+
+    if (hours > 0) {
+      return '${hours.toString().padLeft(2, '0')}:'
+          '${minutes.toString().padLeft(2, '0')}:'
+          '${remainingSeconds.toString().padLeft(2, '0')}';
+    }
 
     return '${minutes.toString().padLeft(2, '0')}:'
-        '${seconds.toString().padLeft(2, '0')}';
+        '${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+
+    final formatted = _formatDuration(reminder?.secondsRemaining ?? 0);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -702,8 +725,8 @@ class _NextReminderCard extends StatelessWidget {
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 250),
             child: Text(
-              _formatted,
-              key: ValueKey(_formatted),
+              formatted,
+              key: ValueKey(formatted),
               style: theme.textTheme.displaySmall?.copyWith(
                 fontWeight: FontWeight.w700,
                 fontFeatures: const [FontFeature.tabularFigures()],
@@ -725,7 +748,9 @@ class _NextReminderCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    'Drink 250 ml',
+                    reminder?.amountMl != null
+                        ? 'Drink ${reminder!.amountMl} ml'
+                        : 'Drink water',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
@@ -747,7 +772,6 @@ class _NextReminderCard extends StatelessWidget {
     );
   }
 }
-
 
 class _IntakeHistory extends StatelessWidget {
   const _IntakeHistory({required this.entries, required this.isLoading});
