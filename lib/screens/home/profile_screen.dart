@@ -1,4 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../profile/appearance_screen.dart';
 import '../profile/about_screen.dart';
@@ -38,11 +43,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
   DailyHydration? _today;
   bool _isLoadingGoal = true;
 
+  File? _profileImage;
+  String? _profilePictureUrl;
+
+  final ImagePicker _imagePicker = ImagePicker();
+
   @override
   void initState() {
     super.initState();
     _loadUserName();
     _loadHydrationGoal();
+    _loadProfilePicture();
+  }
+
+  Future<void> _loadProfilePicture() async {
+    final prefs = await SharedPreferences.getInstance();
+    final path = prefs.getString('profile_picture_path');
+
+    if (path == null) return;
+
+    final file = File(path);
+
+    if (!await file.exists()) {
+      await prefs.remove('profile_picture_path');
+      return;
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _profileImage = file;
+    });
+  }
+
+  Future<void> _pickProfilePicture() async {
+    final pickedFile = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 800,
+    );
+
+    if (pickedFile == null) return;
+
+    final appDirectory = await getApplicationDocumentsDirectory();
+
+    final savedImage = await File(
+      pickedFile.path,
+    ).copy('${appDirectory.path}/profile_picture.jpg');
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('profile_picture_path', savedImage.path);
+
+    if (!mounted) return;
+
+    setState(() {
+      _profileImage = savedImage;
+    });
   }
 
   Future<void> _loadUserName() async {
@@ -113,10 +169,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         icon: Icons.history_outlined,
         label: 'History',
         onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const HistoryScreen()),
-          );
-        }
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const HistoryScreen()));
+        },
       ),
       ProfileOptionData(
         icon: Icons.local_drink_outlined,
@@ -202,10 +258,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   _ProfileHeader(
                     userName: _userName,
+                    profileImage: _profileImage,
+                    profilePictureUrl: _profilePictureUrl,
                     hydrationGoalLiters: _today?.goalMl != null
                         ? _today!.goalMl / 1000
                         : 0,
                     isLoadingGoal: _isLoadingGoal,
+                    onProfilePictureTap: _pickProfilePicture,
                   ),
 
                   const SizedBox(height: 32),
@@ -283,11 +342,18 @@ class _ProfileHeader extends StatelessWidget {
     required this.userName,
     required this.hydrationGoalLiters,
     required this.isLoadingGoal,
+    required this.profileImage,
+    required this.profilePictureUrl,
+    required this.onProfilePictureTap,
   });
 
   final String userName;
   final double hydrationGoalLiters;
   final bool isLoadingGoal;
+
+  final File? profileImage;
+  final String? profilePictureUrl;
+  final VoidCallback onProfilePictureTap;
 
   @override
   Widget build(BuildContext context) {
@@ -297,15 +363,56 @@ class _ProfileHeader extends StatelessWidget {
     return Center(
       child: Column(
         children: [
-          CircleAvatar(
-            radius: 44,
-            backgroundColor: colorScheme.primary.withValues(alpha: 0.14),
-            child: Text(
-              userName.isNotEmpty ? userName[0].toUpperCase() : '?',
-              style: theme.textTheme.headlineMedium?.copyWith(
-                color: colorScheme.primary,
-                fontWeight: FontWeight.w700,
-              ),
+          GestureDetector(
+            onTap: onProfilePictureTap,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                GestureDetector(
+                  onTap: onProfilePictureTap,
+                  child: CircleAvatar(
+                    radius: 44,
+                    backgroundColor: colorScheme.primary.withValues(
+                      alpha: 0.14,
+                    ),
+                    backgroundImage: profileImage != null
+                        ? FileImage(profileImage!)
+                        : profilePictureUrl != null
+                        ? NetworkImage(profilePictureUrl!)
+                        : null,
+                    child: profileImage == null && profilePictureUrl == null
+                        ? Text(
+                            userName.isNotEmpty
+                                ? userName[0].toUpperCase()
+                                : '?',
+                            style: theme.textTheme.headlineMedium?.copyWith(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          )
+                        : null,
+                  ),
+                ),
+
+                Positioned(
+                  right: -2,
+                  bottom: -2,
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: colorScheme.surface, width: 3),
+                    ),
+                    child: Icon(
+                      Icons.camera_alt_rounded,
+                      size: 15,
+                      color: colorScheme.onPrimary,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 14),
