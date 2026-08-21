@@ -88,9 +88,7 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
     if (_isLoading) {
       return Scaffold(
         backgroundColor: colorScheme.surface,
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -98,9 +96,7 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
     final isDark = theme.brightness == Brightness.dark;
 
     final primary = isDark ? themeData.darkPrimary : themeData.primary;
-    final secondary = isDark
-        ? themeData.darkSecondary
-        : themeData.secondary;
+    final secondary = isDark ? themeData.darkSecondary : themeData.secondary;
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
@@ -120,10 +116,7 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
 
                   const SizedBox(height: 32),
 
-                  _buildSectionLabel(
-                    context,
-                    'DISPLAY MODE',
-                  ),
+                  _buildSectionLabel(context, 'DISPLAY MODE'),
 
                   const SizedBox(height: 10),
 
@@ -131,17 +124,11 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
 
                   const SizedBox(height: 28),
 
-                  _buildSectionLabel(
-                    context,
-                    'HYDRATE STYLE',
-                  ),
+                  _buildSectionLabel(context, 'HYDRATE STYLE'),
 
                   const SizedBox(height: 10),
 
-                  _buildHydrateStyleCard(
-                    context,
-                    primary,
-                  ),
+                  _buildHydrateStyleCard(context, primary),
                 ]),
               ),
             ),
@@ -187,11 +174,7 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
             shape: BoxShape.circle,
             color: primary.withValues(alpha: 0.12),
           ),
-          child: Icon(
-            Icons.palette_outlined,
-            color: primary,
-            size: 26,
-          ),
+          child: Icon(Icons.palette_outlined, color: primary, size: 26),
         ),
         const SizedBox(height: 18),
         Text(
@@ -212,10 +195,7 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
     );
   }
 
-  Widget _buildSectionLabel(
-    BuildContext context,
-    String label,
-  ) {
+  Widget _buildSectionLabel(BuildContext context, String label) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
@@ -231,22 +211,15 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
     );
   }
 
-  Widget _buildAppearanceCard(
-    BuildContext context,
-    Color primary,
-  ) {
+  Widget _buildAppearanceCard(BuildContext context, Color primary) {
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .onSurface
-            .withValues(alpha: 0.03),
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: Theme.of(context)
-              .colorScheme
-              .onSurface
-              .withValues(alpha: 0.06),
+          color: Theme.of(
+            context,
+          ).colorScheme.onSurface.withValues(alpha: 0.06),
         ),
       ),
       child: Column(
@@ -300,10 +273,7 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
         onTap: () => _setThemeMode(mode),
         borderRadius: BorderRadius.circular(20),
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 15,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
           child: Row(
             children: [
               AnimatedContainer(
@@ -319,9 +289,7 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
                 child: Icon(
                   icon,
                   size: 21,
-                  color: selected
-                      ? primary
-                      : colorScheme.onSurfaceVariant,
+                  color: selected ? primary : colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(width: 14),
@@ -354,8 +322,7 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
                   border: Border.all(
                     color: selected
                         ? primary
-                        : colorScheme.onSurface
-                            .withValues(alpha: 0.22),
+                        : colorScheme.onSurface.withValues(alpha: 0.22),
                     width: 2,
                   ),
                 ),
@@ -379,22 +346,15 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
     );
   }
 
-  Widget _buildHydrateStyleCard(
-    BuildContext context,
-    Color primary,
-  ) {
+  Widget _buildHydrateStyleCard(BuildContext context, Color primary) {
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .onSurface
-            .withValues(alpha: 0.03),
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: Theme.of(context)
-              .colorScheme
-              .onSurface
-              .withValues(alpha: 0.06),
+          color: Theme.of(
+            context,
+          ).colorScheme.onSurface.withValues(alpha: 0.06),
         ),
       ),
       child: Column(
@@ -425,6 +385,51 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
             title: 'Mist',
             subtitle: 'Blue & muted lavender',
           ),
+          _divider(context),
+          _themeOption(
+            context,
+            theme: HydrateTheme.mint,
+            primary: const Color(0xFF4DBD9A),
+            secondary: const Color(0xFF82D9B8),
+            title: 'Mint',
+            subtitle: 'Fresh green & teal',
+          ),
+          _divider(context),
+          _themeOption(
+            context,
+            theme: HydrateTheme.lavender,
+            primary: const Color(0xFF9B7FEA),
+            secondary: const Color(0xFFD18BDA),
+            title: 'Lavender',
+            subtitle: 'Soft purple & pink',
+          ),
+          _divider(context),
+          _themeOption(
+            context,
+            theme: HydrateTheme.sunset,
+            primary: const Color(0xFFFF8A65),
+            secondary: const Color(0xFFFFB74D),
+            title: 'Sunset',
+            subtitle: 'Warm orange & coral',
+          ),
+          _divider(context),
+          _themeOption(
+            context,
+            theme: HydrateTheme.berry,
+            primary: const Color(0xFFE56B9F),
+            secondary: const Color(0xFFA875D6),
+            title: 'Berry',
+            subtitle: 'Pink & vibrant purple',
+          ),
+          _divider(context),
+          _themeOption(
+            context,
+            theme: HydrateTheme.midnight,
+            primary: const Color(0xFF536DFE),
+            secondary: const Color(0xFF26C6DA),
+            title: 'Midnight',
+            subtitle: 'Deep indigo & cyan',
+          ),
         ],
       ),
     );
@@ -447,10 +452,7 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
         onTap: () => _setHydrateTheme(theme),
         borderRadius: BorderRadius.circular(20),
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
               Container(
@@ -477,22 +479,16 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
                   children: [
                     Text(
                       title,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       subtitle,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -506,8 +502,7 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
                   border: Border.all(
                     color: selected
                         ? primary
-                        : colorScheme.onSurface
-                            .withValues(alpha: 0.22),
+                        : colorScheme.onSurface.withValues(alpha: 0.22),
                     width: 2,
                   ),
                 ),
@@ -535,10 +530,7 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
     return Divider(
       height: 1,
       indent: 72,
-      color: Theme.of(context)
-          .colorScheme
-          .onSurface
-          .withValues(alpha: 0.06),
+      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.06),
     );
   }
 }
