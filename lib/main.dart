@@ -92,10 +92,11 @@ class _HydrateAppState extends State<HydrateApp> {
   //   final time = DateTime.now().add(const Duration(minutes: 1));
 
   //   await AlarmService.instance.scheduleAlarm(
-  //     id: 'migration_test',
-  //     label: 'AlarmService migration test',
+  //     id: 'vivo_test',
+  //     label: 'Vivo alarm test',
   //     reminderTimes: [time],
   //   );
+
   //   final alarms = await Alarm.getAlarms();
 
   //   for (final alarm in alarms) {
@@ -109,7 +110,7 @@ class _HydrateAppState extends State<HydrateApp> {
     await NotificationService.instance.initialize();
     AlarmService.instance.onAlarmTriggered = _showAlarmRingingScreen;
     AlarmService.instance.initialize();
-    await _handleInitialAlarmLaunch();
+    //await _handleInitialAlarmLaunch();
     //await _testAlarmService();
   }
 

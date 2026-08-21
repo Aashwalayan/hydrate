@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../auth/auth_gate.dart';
@@ -27,7 +26,6 @@ class _SplashScreenState extends State<SplashScreen>
   static const Duration _entranceDuration = Duration(milliseconds: 1400);
   static const Duration _holdDuration = Duration(milliseconds: 500);
 
-
   late final AnimationController _entranceController;
   late final Animation<double> _logoScale;
   late final Animation<double> _logoOpacity;
@@ -39,7 +37,6 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-
 
     _entranceController = AnimationController(
       vsync: this,
@@ -64,15 +61,13 @@ class _SplashScreenState extends State<SplashScreen>
         curve: const Interval(0.35, 0.85, curve: Curves.easeOut),
       ),
     );
-    _textSlide = Tween<Offset>(
-      begin: const Offset(0, 0.25),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _entranceController,
-        curve: const Interval(0.35, 0.85, curve: Curves.easeOutCubic),
-      ),
-    );
+    _textSlide = Tween<Offset>(begin: const Offset(0, 0.25), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _entranceController,
+            curve: const Interval(0.35, 0.85, curve: Curves.easeOutCubic),
+          ),
+        );
 
     // Slow, continuous, subtle ripple behind the logo — purely decorative,
     // not tied to any loading state.
@@ -86,11 +81,24 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _scheduleNavigation() async {
-    await Future.delayed(_entranceDuration + _holdDuration);
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const AuthGate()),
-    );
+    while (mounted) {
+      await Future.delayed(_entranceDuration + _holdDuration);
+
+      if (!mounted) return;
+
+      final route = ModalRoute.of(context);
+
+      // If an alarm screen is currently on top of us, wait until
+      // it has been dismissed/snoozed before continuing startup.
+      if (route != null && !route.isCurrent) {
+        continue;
+      }
+
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => const AuthGate()));
+      return;
+    }
   }
 
   @override

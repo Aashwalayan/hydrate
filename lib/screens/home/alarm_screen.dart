@@ -284,14 +284,22 @@ class _AlarmScreenState extends State<AlarmScreen> {
 
     // 2. Restore Android scheduling from what's on-device, if enabled.
     if (local != null && local.enabled) {
-      try {
-        await AlarmService.instance.scheduleAlarm(
-          id: local.id,
-          label: local.label,
-          reminderTimes: _toDateTimes(local.reminderTimes),
+      final ringingAlarm = AlarmService.instance.activeAlarm.value;
+
+      if (ringingAlarm == null) {
+        try {
+          await AlarmService.instance.scheduleAlarm(
+            id: local.id,
+            label: local.label,
+            reminderTimes: _toDateTimes(local.reminderTimes),
+          );
+        } catch (e) {
+          debugPrint('Failed to restore alarm ${local.id}: $e');
+        }
+      } else {
+        debugPrint(
+          'Skipping alarm restore because alarm ${ringingAlarm.id} is currently ringing.',
         );
-      } catch (e) {
-        debugPrint('Failed to restore alarm ${local.id}: $e');
       }
     }
 
@@ -320,11 +328,20 @@ class _AlarmScreenState extends State<AlarmScreen> {
       setState(() => _alarm = remote);
 
       if (remote.enabled) {
-        await AlarmService.instance.scheduleAlarm(
-          id: remote.id,
-          label: remote.label,
-          reminderTimes: _toDateTimes(remote.reminderTimes),
-        );
+        final ringingAlarm = AlarmService.instance.activeAlarm.value;
+
+        if (ringingAlarm == null) {
+          await AlarmService.instance.scheduleAlarm(
+            id: remote.id,
+            label: remote.label,
+            reminderTimes: _toDateTimes(remote.reminderTimes),
+          );
+        } else {
+          debugPrint(
+            'Skipping backend alarm restore because '
+            'alarm ${ringingAlarm.id} is currently ringing.',
+          );
+        }
       }
     } catch (e) {
       debugPrint('Background alarm sync failed (Render may be asleep): $e');
@@ -387,7 +404,9 @@ class _AlarmScreenState extends State<AlarmScreen> {
   Future<void> _syncToBackend(HydrationAlarm alarm) async {
     final id = await _resolveSyncId(alarm.id);
     if (id == null) {
-      debugPrint('Skipping backend sync — the create this alarm depended on never reached the backend.');
+      debugPrint(
+        'Skipping backend sync — the create this alarm depended on never reached the backend.',
+      );
       return;
     }
 
@@ -901,7 +920,10 @@ class _UpcomingAlertsSectionState extends State<_UpcomingAlertsSection> {
     // Local cache read only (no network) — this just needs to notice
     // changes made elsewhere (water logged on Home, a passed reminder
     // time) without any cross-screen event plumbing.
-    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) => _refresh());
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _refresh(),
+    );
   }
 
   @override
@@ -990,8 +1012,8 @@ class _UpcomingAlertsSectionState extends State<_UpcomingAlertsSection> {
                   amountLabel: goalReached
                       ? 'Goal reached'
                       : perAlertMl != null
-                          ? '$perAlertMl ml'
-                          : '—',
+                      ? '$perAlertMl ml'
+                      : '—',
                 ),
                 if (i != upcoming.length - 1) _RowDivider(),
               ],
@@ -1029,7 +1051,11 @@ class _CompactNotice extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: colorScheme.onSurface.withValues(alpha: 0.5)),
+          Icon(
+            icon,
+            size: 20,
+            color: colorScheme.onSurface.withValues(alpha: 0.5),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
