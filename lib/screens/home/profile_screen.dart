@@ -4,6 +4,7 @@ import '../profile/appearance_screen.dart';
 import '../profile/about_screen.dart';
 import '../profile/account_screen.dart';
 import '../profile/hydration_goal_screen.dart';
+import '../profile/history_screen.dart';
 
 import '../../services//auth_service.dart';
 import '../../services/hydration_service.dart';
@@ -109,8 +110,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         },
       ),
       ProfileOptionData(
-        icon: Icons.notifications_outlined,
-        label: 'Notifications',
+        icon: Icons.history_outlined,
+        label: 'History',
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const HistoryScreen()),
+          );
+        }
       ),
       ProfileOptionData(
         icon: Icons.local_drink_outlined,

@@ -8,7 +8,96 @@ const getLevel = (percentage) => {
     if (percentage < 75) return 3;
     if (percentage < 90) return 4;
     return 5;
-}
+};
+
+// Returns YYYY-MM-DD using the server's local calendar date.
+const getDateString = (date = new Date()) => {
+    return (
+        `${date.getFullYear()}-` +
+        `${String(date.getMonth() + 1).padStart(2, "0")}-` +
+        `${String(date.getDate()).padStart(2, "0")}`
+    );
+};
+
+// Creates missing daily records between the user's last record
+// and the requested date.
+//
+// Example:
+// Last record = 2026-08-16
+// Requested date = 2026-08-21
+//
+// Creates:
+// 2026-08-17 → 0 ml
+// 2026-08-18 → 0 ml
+// 2026-08-19 → 0 ml
+// 2026-08-20 → 0 ml
+// 2026-08-21 → 0 ml
+const ensureDailyRecords = async (userId, targetDate) => {
+    const settings = await HydrationSettings.findOne({
+        userId
+    });
+
+    if (!settings) {
+        throw new Error("Hydration settings not found");
+    }
+
+    // Find the most recent daily record before the target date.
+    const latest = await HydrationDaily.findOne({
+        userId,
+        date: { $lt: targetDate }
+    }).sort({ date: -1 });
+
+    let startDate;
+
+    if (latest) {
+        startDate = new Date(`${latest.date}T00:00:00`);
+        startDate.setDate(startDate.getDate() + 1);
+    } else {
+        // No previous history.
+        // Only create the requested day.
+        startDate = new Date(`${targetDate}T00:00:00`);
+    }
+
+    const target = new Date(`${targetDate}T00:00:00`);
+
+    const records = [];
+
+    while (startDate <= target) {
+        const date = getDateString(startDate);
+
+        records.push({
+            userId,
+            date,
+            goalMl: settings.dailyGoalMl,
+            intakeMl: 0,
+            completionPercent: 0,
+            level: 0,
+            entries: []
+        });
+
+        startDate.setDate(startDate.getDate() + 1);
+    }
+
+    if (records.length > 0) {
+        try {
+            await HydrationDaily.insertMany(records, {
+                ordered: false
+            });
+        } catch (error) {
+            // If two requests happen at nearly the same time,
+            // the unique index may cause a duplicate-key error.
+            // That's okay because the records already exist.
+            if (error.code !== 11000) {
+                throw error;
+            }
+        }
+    }
+
+    return HydrationDaily.findOne({
+        userId,
+        date: targetDate
+    });
+};
 
 const getSettings = async (req, res) => {
     try {
@@ -72,8 +161,8 @@ const createOrUpdateSettings = async (req, res) => {
 };
 
 const addWater = async (req, res) => {
-    try{
-        const {amountMl, date} = req.body;
+    try {
+        const { amountMl, date } = req.body;
 
         if (!amountMl || amountMl <= 0) {
             return res.status(400).json({
@@ -97,20 +186,15 @@ const addWater = async (req, res) => {
             });
         }
 
-        let daily = await HydrationDaily.findOne({
-            userId: req.user.userId,
+        // Make sure all missing days up to this date exist.
+        let daily = await ensureDailyRecords(
+            req.user.userId,
             date
-        });
+        );
 
         if (!daily) {
-            daily = new HydrationDaily({
-                userId: req.user.userId,
-                date,
-                goalMl: settings.dailyGoalMl,
-                intakeMl: 0,
-                completionPercent: 0,
-                level: 0,
-                entries: []
+            return res.status(404).json({
+                message: "Unable to create daily hydration record"
             });
         }
 
@@ -121,9 +205,13 @@ const addWater = async (req, res) => {
 
         daily.intakeMl += amountMl;
 
-        daily.completionPercent = Math.round((daily.intakeMl / daily.goalMl) * 100);
+        daily.completionPercent = Math.round(
+            (daily.intakeMl / daily.goalMl) * 100
+        );
 
-        daily.level = getLevel(daily.completionPercent);
+        daily.level = getLevel(
+            daily.completionPercent
+        );
 
         await daily.save();
 
@@ -132,49 +220,29 @@ const addWater = async (req, res) => {
             daily
         });
 
-    }catch(error){
-
+    } catch (error) {
         console.error(error);
+
         res.status(500).json({
             message: "Something went wrong"
         });
-
     }
 };
 
 const getToday = async (req, res) => {
     try {
-        const { date } = req.query;
+        const today = getDateString();
 
-        if (!date) {
-            return res.status(400).json({
-                message: "Date is required"
-            });
-        }
-
-        const settings = await HydrationSettings.findOne({
-            userId: req.user.userId
-        });
-
-        if (!settings) {
-            return res.status(404).json({
-                message: "Hydration settings not found"
-            });
-        }
-
-        let daily = await HydrationDaily.findOne({
-            userId: req.user.userId,
-            date
-        });
+        // This also backfills any days that were missed
+        // while the app wasn't being used.
+        const daily = await ensureDailyRecords(
+            req.user.userId,
+            today
+        );
 
         if (!daily) {
-            return res.status(200).json({
-                date,
-                goalMl: settings.dailyGoalMl,
-                intakeMl: 0,
-                completionPercent: 0,
-                level: 0,
-                entries: []
+            return res.status(404).json({
+                message: "Unable to create today's hydration record"
             });
         }
 
@@ -182,6 +250,12 @@ const getToday = async (req, res) => {
 
     } catch (error) {
         console.error(error);
+
+        if (error.message === "Hydration settings not found") {
+            return res.status(404).json({
+                message: "Hydration settings not found"
+            });
+        }
 
         res.status(500).json({
             message: "Something went wrong"
@@ -220,7 +294,7 @@ const updateGoal = async (req, res) => {
             });
         }
 
-        // Update the user's hydration settings
+        // Update the user's current hydration settings.
         const settings = await HydrationSettings.findOneAndUpdate(
             { userId: req.user.userId },
             { dailyGoalMl },
@@ -236,26 +310,24 @@ const updateGoal = async (req, res) => {
             });
         }
 
-        // Update today's daily record if one already exists
-        const today = new Date();
-        const date =
-            `${today.getFullYear()}-` +
-            `${String(today.getMonth() + 1).padStart(2, "0")}-` +
-            `${String(today.getDate()).padStart(2, "0")}`;
+        // Update today's daily record if it already exists.
+        const today = getDateString();
 
         const daily = await HydrationDaily.findOne({
             userId: req.user.userId,
-            date
+            date: today
         });
 
         if (daily) {
             daily.goalMl = dailyGoalMl;
 
-            daily.completionPercent = dailyGoalMl <= 0
-                ? 0
-                : Math.round((daily.intakeMl / dailyGoalMl) * 100);
+            daily.completionPercent = Math.round(
+                (daily.intakeMl / daily.goalMl) * 100
+            );
 
-            daily.level = getLevel(daily.completionPercent);
+            daily.level = getLevel(
+                daily.completionPercent
+            );
 
             await daily.save();
         }
@@ -274,7 +346,6 @@ const updateGoal = async (req, res) => {
         });
     }
 };
-
 
 module.exports = {
     getSettings,
