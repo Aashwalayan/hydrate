@@ -1,15 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
-Future<void> wakeServer() async {
-  try {
-    await http.get(
-      Uri.parse('https://hydrate-vor8.onrender.com'),
-    );
-  } catch (_) {
-    // we dont actually need to have an error here, since the server is just being woken up and we don't care about the response
-  }
-}
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({
@@ -27,11 +17,7 @@ class WelcomeScreen extends StatefulWidget {
 }
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
-  @override
-  void initState() {
-  super.initState();
-  wakeServer();
-}
+ 
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;

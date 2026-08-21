@@ -70,7 +70,7 @@ class HydrationAlarmResponse {
 
 class HydrationAlarmService {
   static const String baseUrl =
-      'https://hydrate-vor8.onrender.com/api/hydration/alarms';
+    'https://hydrate-api-622443979031.asia-south1.run.app/api/hydration/alarms';
 
   Future<Map<String, String>?> _authHeaders() async {
     final prefs = await SharedPreferences.getInstance();

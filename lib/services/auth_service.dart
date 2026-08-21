@@ -15,8 +15,8 @@ class AuthResponse {
 }
 
 class AuthService {
-  // Android emulator → your computer's localhost
-  static const String baseUrl = 'https://hydrate-vor8.onrender.com/api/auth';
+  static const String baseUrl =
+    'https://hydrate-api-622443979031.asia-south1.run.app/api/auth';
 
   Future<void> _saveUserName(String name) async {
     final prefs = await SharedPreferences.getInstance();

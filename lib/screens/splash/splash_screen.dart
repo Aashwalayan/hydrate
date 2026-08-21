@@ -1,9 +1,7 @@
-import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import '../auth/auth_gate.dart';
-import '../../services/server_wake_service.dart';
 
 /// Branded startup screen shown immediately on launch.
 ///
@@ -29,7 +27,6 @@ class _SplashScreenState extends State<SplashScreen>
   static const Duration _entranceDuration = Duration(milliseconds: 1400);
   static const Duration _holdDuration = Duration(milliseconds: 500);
 
-  final ServerWakeService _serverWakeService = ServerWakeService();
 
   late final AnimationController _entranceController;
   late final Animation<double> _logoScale;
@@ -43,8 +40,6 @@ class _SplashScreenState extends State<SplashScreen>
   void initState() {
     super.initState();
 
-    // Fire-and-forget: never awaited, never allowed to affect navigation.
-    unawaited(_serverWakeService.pingHealth());
 
     _entranceController = AnimationController(
       vsync: this,
@@ -102,7 +97,6 @@ class _SplashScreenState extends State<SplashScreen>
   void dispose() {
     _entranceController.dispose();
     _rippleController.dispose();
-    _serverWakeService.dispose();
     super.dispose();
   }
 

@@ -79,7 +79,7 @@ class DailyHydration {
 
 class HydrationService {
   static const String baseUrl =
-      'https://hydrate-vor8.onrender.com/api/hydration';
+    'https://hydrate-api-622443979031.asia-south1.run.app/api/hydration';
 
   static const String _todayCacheKey = 'hydration_today';
 
