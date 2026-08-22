@@ -37,51 +37,41 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
   }
 
   Future<void> _finish() async {
-  final prefs = await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
 
-  await prefs.setString('theme_mode', _themeMode.name);
-  await prefs.setString('hydrate_theme', _theme.name);
+    await prefs.setString('theme_mode', _themeMode.name);
+    await prefs.setString('hydrate_theme', _theme.name);
 
-  // Mark onboarding as completed.
-  await prefs.setBool('onboarding_complete', true);
+    // Mark onboarding as completed.
+    await prefs.setBool('onboarding_complete', true);
 
-  _themeController.setSettings(
-    themeMode: _themeMode,
-    hydrateTheme: _theme,
-  );
+    _themeController.setSettings(themeMode: _themeMode, hydrateTheme: _theme);
 
-  widget.onFinish?.call(_themeMode, _theme);
+    widget.onFinish?.call(_themeMode, _theme);
 
-  if (!mounted) return;
+    if (!mounted) return;
 
-  Navigator.of(context).pushAndRemoveUntil(
-    MaterialPageRoute<void>(
-      builder: (_) => const MainScreen(),
-    ),
-    (route) => false,
-  );
-}
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(builder: (_) => const MainScreen()),
+      (route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final colorScheme = theme.colorScheme;
 
-    final primary = theme.colorScheme.primary;
-    final secondary = theme.colorScheme.secondary;
-
-    final surface = theme.colorScheme.surface;
+    final primary = colorScheme.primary;
+    final secondary = colorScheme.secondary;
 
     return Scaffold(
-      backgroundColor: surface,
+      backgroundColor: colorScheme.surface,
       body: SafeArea(
         child: Stack(
           children: [
-            _PersonalizationBackground(
-              primary: primary,
-              secondary: secondary,
-              isDark: isDark,
-            ),
+            _PersonalizationBackground(primary: primary, secondary: secondary),
+
             SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
@@ -327,7 +317,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
           setState(() {
             _themeMode = mode;
           });
-
+          _themeController.setThemeMode(mode);
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
@@ -395,36 +385,27 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
 
           const SizedBox(height: 18),
 
-          _themeOption(
-            context,
-            theme: HydrateTheme.calm,
-            primary: const Color(0xFF4FC3E8),
-            secondary: const Color(0xFF7FD8C7),
-            title: 'Calm Water',
-            subtitle: 'Soft cyan & seafoam',
-          ),
+          ...HydrateTheme.values.asMap().entries.map((entry) {
+            final index = entry.key;
+            final theme = entry.value;
+            final data = HydrateThemes.get(theme);
 
-          const SizedBox(height: 10),
+            return Column(
+              children: [
+                _themeOption(
+                  context,
+                  theme: theme,
+                  primary: data.primary,
+                  secondary: data.secondary,
+                  title: data.name,
+                  subtitle: data.description,
+                ),
 
-          _themeOption(
-            context,
-            theme: HydrateTheme.ocean,
-            primary: const Color(0xFF5FB8E8),
-            secondary: const Color(0xFF69D6D0),
-            title: 'Ocean',
-            subtitle: 'Cool blue & aqua',
-          ),
-
-          const SizedBox(height: 10),
-
-          _themeOption(
-            context,
-            theme: HydrateTheme.mist,
-            primary: const Color(0xFF8CB8F2),
-            secondary: const Color(0xFFA78BFA),
-            title: 'Mist',
-            subtitle: 'Blue & muted lavender',
-          ),
+                if (index != HydrateTheme.values.length - 1)
+                  const SizedBox(height: 10),
+              ],
+            );
+          }),
         ],
       ),
     );
@@ -446,6 +427,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
         setState(() {
           _theme = theme;
         });
+        _themeController.setHydrateTheme(theme);
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
@@ -674,30 +656,26 @@ class _PersonalizationBackground extends StatelessWidget {
   const _PersonalizationBackground({
     required this.primary,
     required this.secondary,
-    required this.isDark,
   });
 
   final Color primary;
   final Color secondary;
-  final bool isDark;
 
   @override
   Widget build(BuildContext context) {
-    final surface = isDark ? const Color(0xFF101820) : const Color(0xFFF5FAFB);
+    final colorScheme = Theme.of(context).colorScheme;
 
-    return Positioned.fill(
-      child: IgnorePointer(
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                primary.withValues(alpha: isDark ? 0.20 : 0.12),
-                surface,
-                secondary.withValues(alpha: isDark ? 0.16 : 0.09),
-              ],
-            ),
+    return IgnorePointer(
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              colorScheme.primary.withValues(alpha: 0.12),
+              colorScheme.surface,
+              colorScheme.secondary.withValues(alpha: 0.09),
+            ],
           ),
         ),
       ),
