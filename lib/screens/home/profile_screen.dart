@@ -13,6 +13,11 @@ import '../profile/history_screen.dart';
 
 import '../../services//auth_service.dart';
 import '../../services/hydration_service.dart';
+import '../../services/hydration_alarm_local_storage.dart';
+import '../../services/alarm_service.dart';
+
+import '../../theme/hydrate_theme.dart';
+import '../../theme/theme_provider.dart';
 
 /// Mock model for a single tappable profile option row.
 class ProfileOptionData {
@@ -317,6 +322,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       );
 
                       if (shouldLogout != true) return;
+
+                      final themeController = ThemeControllerProvider.of(
+                        context,
+                      );
+
+                      themeController.setSettings(
+                        themeMode: ThemeMode.system,
+                        hydrateTheme: HydrateTheme.calm,
+                      );
+
+                      final prefs = await SharedPreferences.getInstance();
+                      final path = prefs.getString('profile_picture_path');
+
+                      if (path != null) {
+                        final file = File(path);
+                        if (await file.exists()) {
+                          await file.delete();
+                        }
+                      }
+
+                      await prefs.remove('profile_picture_path');
+
+                      final localAlarmStorage = HydrationAlarmLocalStorage();
+                      final localAlarm = await localAlarmStorage.loadAlarm();
+
+                      if (localAlarm != null) {
+                        await AlarmService.instance.cancelAlarm(
+                          localAlarm.id,
+                          reminderCount: localAlarm.reminderTimes.length,
+                        );
+                      }
+
+                      await localAlarmStorage.deleteAlarm();
+
+                      await AuthService().logout();
+
+                      await HydrationAlarmLocalStorage().deleteAlarm();
 
                       await AuthService().logout();
 
