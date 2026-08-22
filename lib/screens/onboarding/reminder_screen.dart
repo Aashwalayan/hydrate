@@ -63,13 +63,13 @@ class _ReminderScreenState extends State<ReminderScreen> {
       return '${interval.inMinutes} min';
     }
 
-    final hours = interval.inMinutes ~/ 60;
-
-    if (hours == 1) {
-      return '1 hour';
+    if (interval.inMinutes == 90) {
+      return '1.5 hours';
     }
 
-    return '$hours hours';
+    final hours = interval.inMinutes ~/ 60;
+
+    return hours == 1 ? '1 hour' : '$hours hours';
   }
 
   Future<void> _selectTime({required bool start}) async {
@@ -147,10 +147,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            _ReminderBackground(
-              primary: primary,
-              secondary: secondary,
-            ),
+            _ReminderBackground(primary: primary, secondary: secondary),
             SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
