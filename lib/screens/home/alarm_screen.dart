@@ -9,54 +9,48 @@ import '../../services/hydration_service.dart';
 
 enum AlarmScheduleType { equalIntervals, custom }
 
-enum AlarmTone { defaultTone, chime, droplet, bell, gentleWave, silent }
+enum AlarmTone {
+  alarmtone1,
+  alarmtone2,
+  alarmtone3,
+  alarmtone4,
+  alarmtone5,
+  alarmtone6,
+}
 
 extension AlarmToneDisplay on AlarmTone {
   String get label {
     switch (this) {
-      case AlarmTone.defaultTone:
-        return 'Default';
-      case AlarmTone.chime:
-        return 'Chime';
-      case AlarmTone.droplet:
-        return 'Droplet';
-      case AlarmTone.bell:
-        return 'Bell';
-      case AlarmTone.gentleWave:
-        return 'Gentle Wave';
-      case AlarmTone.silent:
-        return 'Silent';
+      case AlarmTone.alarmtone1:
+        return 'Tone 1';
+      case AlarmTone.alarmtone2:
+        return 'Tone 2';
+      case AlarmTone.alarmtone3:
+        return 'Tone 3';
+      case AlarmTone.alarmtone4:
+        return 'Tone 4';
+      case AlarmTone.alarmtone5:
+        return 'Tone 5';
+      case AlarmTone.alarmtone6:
+        return 'Tone 6';
     }
   }
 
   IconData get icon {
     switch (this) {
-      case AlarmTone.defaultTone:
-        return Icons.notifications_outlined;
-      case AlarmTone.chime:
+      case AlarmTone.alarmtone1:
+      case AlarmTone.alarmtone2:
+      case AlarmTone.alarmtone3:
+      case AlarmTone.alarmtone4:
+      case AlarmTone.alarmtone5:
+      case AlarmTone.alarmtone6:
         return Icons.music_note_outlined;
-      case AlarmTone.droplet:
-        return Icons.water_drop_outlined;
-      case AlarmTone.bell:
-        return Icons.notifications_active_outlined;
-      case AlarmTone.gentleWave:
-        return Icons.waves_outlined;
-      case AlarmTone.silent:
-        return Icons.volume_off_outlined;
     }
   }
+
+  String get assetPath => 'assets/sounds/$name.mp3';
 }
 
-/// Model for the user's single hydration reminder schedule.
-///
-/// Structured so a real notification-scheduling model can replace this
-/// without touching the widgets that render it. [reminderTimes] is always
-/// the source of truth for what actually fires — it's computed once (either
-/// evenly spaced or manually picked) rather than left for a future
-/// notification system to derive from [startTime]/[endTime]. It is also
-/// the same source of truth the "Upcoming alerts" section reads from, so
-/// that section can never show a time the actual Android alarm doesn't
-/// match.
 class HydrationAlarm {
   const HydrationAlarm({
     required this.id,
@@ -67,7 +61,7 @@ class HydrationAlarm {
     this.startTime,
     this.endTime,
     this.intervalMinutes,
-    this.tone = AlarmTone.defaultTone,
+    this.tone = AlarmTone.alarmtone1,
   });
 
   final String id;
@@ -257,7 +251,7 @@ class _AlarmScreenState extends State<AlarmScreen> {
       intervalMinutes: dto.intervalMinutes,
       tone: AlarmTone.values.firstWhere(
         (tone) => tone.name == dto.tone,
-        orElse: () => AlarmTone.defaultTone,
+        orElse: () => AlarmTone.alarmtone1,
       ),
     );
   }
@@ -292,6 +286,7 @@ class _AlarmScreenState extends State<AlarmScreen> {
             id: local.id,
             label: local.label,
             reminderTimes: _toDateTimes(local.reminderTimes),
+            tone: local.tone.name,
           );
         } catch (e) {
           debugPrint('Failed to restore alarm ${local.id}: $e');
@@ -1186,7 +1181,7 @@ class _AlarmEditorScreenState extends State<_AlarmEditorScreen> {
     _scheduleType = initial?.scheduleType ?? AlarmScheduleType.equalIntervals;
     _startTime = initial?.startTime ?? const TimeOfDay(hour: 8, minute: 0);
     _endTime = initial?.endTime ?? const TimeOfDay(hour: 20, minute: 0);
-    _tone = initial?.tone ?? AlarmTone.defaultTone;
+    _tone = initial?.tone ?? AlarmTone.alarmtone1;
     _enabled = initial?.enabled ?? true;
     _labelController = TextEditingController(
       text: initial?.label ?? 'Hydration reminders',
@@ -1834,7 +1829,7 @@ class _ToneAndLabelStep extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Placeholder selection for now — native ringtone picking comes later.',
+          'Choose the sound Hydrate will use for your reminders.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: colorScheme.onSurface.withValues(alpha: 0.45),
           ),

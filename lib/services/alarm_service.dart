@@ -9,22 +9,26 @@ class ActiveAlarm {
     required this.id,
     required this.label,
     required this.scheduledTime,
+    this.tone = 'alarmtone1'
   });
 
   final int id;
   final String label;
   final DateTime scheduledTime;
+  final String tone;
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'label': label,
     'scheduledTime': scheduledTime.toIso8601String(),
+    'tone': tone
   };
 
   factory ActiveAlarm.fromJson(Map<String, dynamic> json) => ActiveAlarm(
     id: json['id'] as int,
     label: json['label'] as String,
     scheduledTime: DateTime.parse(json['scheduledTime'] as String),
+    tone: json['tone'] as String? ?? 'alarmtone1'
   );
 
   String encode() => jsonEncode(toJson());
@@ -103,6 +107,7 @@ class AlarmService {
     required String id,
     required String label,
     required List<DateTime> reminderTimes,
+    String tone = 'alarmtone1'
   }) async {
     for (var i = 0; i < reminderTimes.length; i++) {
       final scheduledTime = reminderTimes[i];
@@ -112,12 +117,13 @@ class AlarmService {
         id: alarmId,
         label: label,
         scheduledTime: scheduledTime,
+        tone: tone,
       );
 
       final settings = AlarmSettings(
         id: alarmId,
         dateTime: scheduledTime,
-        assetAudioPath: 'assets/sounds/alarm.mp3',
+        assetAudioPath: 'assets/sounds/$tone.mp3',
         loopAudio: true,
         vibrate: true,
         androidFullScreenIntent: true,
@@ -159,6 +165,7 @@ class AlarmService {
     required String label,
     required List<DateTime> oldReminderTimes,
     required List<DateTime> newReminderTimes,
+    String tone = 'alarmtone1.mp3'
   }) async {
     await cancelAlarm(id, reminderCount: oldReminderTimes.length);
 
@@ -192,12 +199,13 @@ class AlarmService {
       id: alarm.id,
       label: alarm.label,
       scheduledTime: newTime,
+      tone: alarm.tone
     );
 
     final settings = AlarmSettings(
       id: alarm.id,
       dateTime: newTime,
-      assetAudioPath: 'assets/sounds/alarm.mp3',
+      assetAudioPath: 'assets/sounds/${alarm.tone}.mp3',
       loopAudio: true,
       vibrate: true,
       androidFullScreenIntent: true,

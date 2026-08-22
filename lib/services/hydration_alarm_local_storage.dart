@@ -89,7 +89,7 @@ class HydrationAlarmLocalStorage {
       intervalMinutes: json['intervalMinutes'] as int?,
       tone: AlarmTone.values.firstWhere(
         (t) => t.name == json['tone'],
-        orElse: () => AlarmTone.defaultTone,
+        orElse: () => AlarmTone.alarmtone1,
       ),
     );
   }
