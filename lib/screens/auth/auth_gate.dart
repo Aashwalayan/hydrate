@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../home/main_screen.dart';
 import 'signup_screen.dart';
+import 'login_screen.dart';
 import '../onboarding/welcome_screen.dart';
 import '../../services/auth_service.dart';
 
@@ -32,7 +33,7 @@ class _AuthGateState extends State<AuthGate> {
         onGetStarted: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => SignupScreen(authService: _authService),
+              builder: (_) => LoginScreen(authService: _authService),
             ),
           );
         },

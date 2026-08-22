@@ -81,7 +81,9 @@ class _ReminderScreenState extends State<ReminderScreen> {
 
         return Theme(
           data: theme.copyWith(
-            colorScheme: theme.colorScheme.copyWith(primary: theme.colorScheme.primary,),
+            colorScheme: theme.colorScheme.copyWith(
+              primary: theme.colorScheme.primary,
+            ),
           ),
           child: child!,
         );
@@ -100,52 +102,41 @@ class _ReminderScreenState extends State<ReminderScreen> {
   }
 
   String _formatTimeForApi(TimeOfDay time) {
-  final hour = time.hour.toString().padLeft(2, '0');
-  final minute = time.minute.toString().padLeft(2, '0');
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
 
-  return '$hour:$minute';
-}
-
-  Future<void> _continue() async {
-  final response = await _hydrationService.saveSettings(
-    dailyGoalMl: widget.dailyGoalMl,
-    enabled: _remindersEnabled,
-    interval: _interval,
-    startTime: _formatTimeForApi(_startTime),
-    endTime: _formatTimeForApi(_endTime),
-  );
-
-  if (!mounted) return;
-
-  if (!response.success) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(response.message),
-      ),
-    );
-    return;
+    return '$hour:$minute';
   }
 
-  widget.onContinue?.call(
-    _remindersEnabled,
-    _interval,
-    _startTime,
-    _endTime,
-  );
+  Future<void> _continue() async {
+    final response = await _hydrationService.saveSettings(
+      dailyGoalMl: widget.dailyGoalMl,
+      enabled: _remindersEnabled,
+      interval: _interval,
+      startTime: _formatTimeForApi(_startTime),
+      endTime: _formatTimeForApi(_endTime),
+    );
 
-  Navigator.of(context).push(
-    MaterialPageRoute(
-      builder: (_) => const PersonalizationScreen(),
-    ),
-  );
-}
+    if (!mounted) return;
+
+    if (!response.success) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(response.message)));
+      return;
+    }
+
+    widget.onContinue?.call(_remindersEnabled, _interval, _startTime, _endTime);
+
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const PersonalizationScreen()));
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-
-    final isDark = theme.brightness == Brightness.dark;
 
     final primary = colorScheme.primary;
     final secondary = colorScheme.secondary;
@@ -159,7 +150,6 @@ class _ReminderScreenState extends State<ReminderScreen> {
             _ReminderBackground(
               primary: primary,
               secondary: secondary,
-              isDark: isDark,
             ),
             SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
@@ -284,7 +274,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
         number,
         style: TextStyle(
           fontWeight: FontWeight.w700,
-          color: active ? Colors.white : colorScheme.onSurfaceVariant,
+          color: active ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
         ),
       ),
     );
@@ -694,6 +684,8 @@ class _ReminderScreenState extends State<ReminderScreen> {
     Color primary,
     Color secondary,
   ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return SizedBox(
       width: double.infinity,
       height: 58,
@@ -713,7 +705,7 @@ class _ReminderScreenState extends State<ReminderScreen> {
           onPressed: _continue,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
-            foregroundColor: Colors.white,
+            foregroundColor: colorScheme.onPrimary,
             shadowColor: Colors.transparent,
             elevation: 0,
             shape: RoundedRectangleBorder(
@@ -738,15 +730,10 @@ class _ReminderScreenState extends State<ReminderScreen> {
 }
 
 class _ReminderBackground extends StatelessWidget {
-  const _ReminderBackground({
-    required this.primary,
-    required this.secondary,
-    required this.isDark,
-  });
+  const _ReminderBackground({required this.primary, required this.secondary});
 
   final Color primary;
   final Color secondary;
-  final bool isDark;
 
   @override
   Widget build(BuildContext context) {
@@ -760,9 +747,9 @@ class _ReminderBackground extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                primary.withValues(alpha: isDark ? 0.20 : 0.12),
+                primary.withValues(alpha: 0.12),
                 surface,
-                secondary.withValues(alpha: isDark ? 0.16 : 0.09),
+                secondary.withValues(alpha: 0.09),
               ],
             ),
           ),

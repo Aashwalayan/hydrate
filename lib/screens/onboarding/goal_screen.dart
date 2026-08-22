@@ -75,8 +75,6 @@ class _GoalScreenState extends State<GoalScreen>
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final isDark = theme.brightness == Brightness.dark;
-
     final primary = colorScheme.primary;
     final secondary = colorScheme.secondary;
     final surface = colorScheme.surface;
@@ -86,7 +84,7 @@ class _GoalScreenState extends State<GoalScreen>
       body: SafeArea(
         child: Stack(
           children: [
-            _Background(primary: primary, secondary: secondary, isDark: isDark),
+            _Background(primary: primary, secondary: secondary),
 
             SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
@@ -189,7 +187,6 @@ class _GoalScreenState extends State<GoalScreen>
   }
 
   Widget _buildProgressIndicator(BuildContext context, Color primary) {
-
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -237,7 +234,7 @@ class _GoalScreenState extends State<GoalScreen>
         number,
         style: TextStyle(
           fontWeight: FontWeight.w700,
-          color: active ? Colors.white : colorScheme.onSurfaceVariant,
+          color: active ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
         ),
       ),
     );
@@ -472,7 +469,7 @@ class _GoalScreenState extends State<GoalScreen>
                                     painter: _WavePainter(
                                       animation:
                                           _waterAnimationController.value,
-                                      color: Colors.white.withValues(
+                                      color: colorScheme.onPrimary.withValues(
                                         alpha: 0.25,
                                       ),
                                     ),
@@ -651,6 +648,8 @@ class _GoalScreenState extends State<GoalScreen>
     Color primary,
     Color secondary,
   ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return SizedBox(
       width: double.infinity,
       height: 58,
@@ -676,7 +675,7 @@ class _GoalScreenState extends State<GoalScreen>
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
-            foregroundColor: Colors.white,
+            foregroundColor: colorScheme.onPrimary,
             shadowColor: Colors.transparent,
             elevation: 0,
             shape: RoundedRectangleBorder(
@@ -701,15 +700,10 @@ class _GoalScreenState extends State<GoalScreen>
 }
 
 class _Background extends StatelessWidget {
-  const _Background({
-    required this.primary,
-    required this.secondary,
-    required this.isDark,
-  });
+  const _Background({required this.primary, required this.secondary});
 
   final Color primary;
   final Color secondary;
-  final bool isDark;
 
   @override
   Widget build(BuildContext context) {
@@ -723,9 +717,9 @@ class _Background extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                primary.withValues(alpha: isDark ? 0.20 : 0.12),
+                primary.withValues(alpha: 0.12),
                 surface,
-                secondary.withValues(alpha: isDark ? 0.16 : 0.09),
+                secondary.withValues(alpha: 0.09),
               ],
             ),
           ),

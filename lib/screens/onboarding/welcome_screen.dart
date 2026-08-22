@@ -1,65 +1,38 @@
 import 'package:flutter/material.dart';
 
-
 class WelcomeScreen extends StatefulWidget {
-  const WelcomeScreen({
-    super.key,
-    this.onGetStarted,
-  });
+  const WelcomeScreen({super.key, this.onGetStarted});
 
   final VoidCallback? onGetStarted;
-
-  static const Color _primary = Color(0xFF4FC3E8);
-  static const Color _secondary = Color(0xFF7FD8C7);
 
   @override
   State<WelcomeScreen> createState() => _WelcomeScreenState();
 }
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
- 
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final colorScheme = theme.colorScheme;
 
-    final surface = isDark
-        ? const Color(0xFF101820)
-        : const Color(0xFFF5FAFB);
 
-    final primary = isDark
-        ? const Color(0xFF5FD3F3)
-        : WelcomeScreen._primary;
-
-    final secondary = isDark
-        ? const Color(0xFF6FE0C9)
-        : WelcomeScreen._secondary;
+    final primary = colorScheme.primary;
+    final secondary = colorScheme.secondary;
+    final surface = colorScheme.surface;
 
     return Scaffold(
       backgroundColor: surface,
       body: SafeArea(
         child: Stack(
           children: [
-            _Background(
-              primary: primary,
-              secondary: secondary,
-              isDark: isDark,
-            ),
+            _Background(primary: primary, secondary: secondary, surface: surface),
 
             Padding(
-              padding: const EdgeInsets.fromLTRB(
-                28,
-                28,
-                28,
-                28,
-              ),
+              padding: const EdgeInsets.fromLTRB(28, 28, 28, 28),
               child: Column(
                 children: [
                   const Spacer(),
 
-                  _buildLogo(
-                    primary,
-                    secondary,
-                  ),
+                  _buildLogo(primary, secondary, surface),
 
                   const SizedBox(height: 32),
 
@@ -124,18 +97,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     height: 60,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            primary,
-                            secondary,
-                          ],
-                        ),
+                        gradient: LinearGradient(colors: [primary, secondary]),
                         borderRadius: BorderRadius.circular(18),
                         boxShadow: [
                           BoxShadow(
-                            color: primary.withValues(
-                              alpha: 0.25,
-                            ),
+                            color: primary.withValues(alpha: 0.25),
                             blurRadius: 18,
                             offset: const Offset(0, 8),
                           ),
@@ -145,7 +111,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         onPressed: widget.onGetStarted,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
-                          foregroundColor: Colors.white,
+                          foregroundColor: colorScheme.onPrimary,
                           shadowColor: Colors.transparent,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
@@ -153,8 +119,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           ),
                         ),
                         child: const Row(
-                          mainAxisAlignment:
-                              MainAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
                               'Get Started',
@@ -164,10 +129,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                               ),
                             ),
                             SizedBox(width: 10),
-                            Icon(
-                              Icons.arrow_forward_rounded,
-                              size: 22,
-                            ),
+                            Icon(Icons.arrow_forward_rounded, size: 22),
                           ],
                         ),
                       ),
@@ -192,10 +154,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     );
   }
 
-  Widget _buildLogo(
-    Color primary,
-    Color secondary,
-  ) {
+  Widget _buildLogo(Color primary, Color secondary, Color onPrimary) {
     return Container(
       width: 118,
       height: 118,
@@ -226,15 +185,12 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                primary,
-                secondary,
-              ],
+              colors: [primary, secondary],
             ),
           ),
-          child: const Icon(
+          child: Icon(
             Icons.water_drop_rounded,
-            color: Colors.white,
+            color: onPrimary,
             size: 42,
           ),
         ),
@@ -252,16 +208,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 15,
-        vertical: 13,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
       decoration: BoxDecoration(
         color: colorScheme.surface.withValues(alpha: 0.82),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: primary.withValues(alpha: 0.10),
-        ),
+        border: Border.all(color: primary.withValues(alpha: 0.10)),
       ),
       child: Row(
         children: [
@@ -272,19 +223,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               color: primary.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(
-              icon,
-              color: primary,
-              size: 22,
-            ),
+            child: Icon(icon, color: primary, size: 22),
           ),
 
           const SizedBox(width: 13),
 
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
@@ -315,39 +261,31 @@ class _Background extends StatelessWidget {
   const _Background({
     required this.primary,
     required this.secondary,
-    required this.isDark,
+    required this.surface,
   });
 
   final Color primary;
   final Color secondary;
-  final bool isDark;
+  final Color surface;
 
   @override
-  Widget build(BuildContext context) {
-    final surface = isDark
-        ? const Color(0xFF101820)
-        : const Color(0xFFF5FAFB);
-
-    return Positioned.fill(
-      child: IgnorePointer(
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                primary.withValues(
-                  alpha: isDark ? 0.20 : 0.12,
-                ),
-                surface,
-                secondary.withValues(
-                  alpha: isDark ? 0.16 : 0.09,
-                ),
-              ],
-            ),
+Widget build(BuildContext context) {
+  return Positioned.fill(
+    child: IgnorePointer(
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              primary.withValues(alpha: 0.12),
+              surface,
+              secondary.withValues(alpha: 0.09),
+            ],
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

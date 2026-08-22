@@ -85,7 +85,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
 
                   const SizedBox(height: 30),
 
-                  _buildHeader(context, primary),
+                  _buildHeader(context, primary, secondary),
 
                   const SizedBox(height: 30),
 
@@ -194,7 +194,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     );
   }
 
-  Widget _buildHeader(BuildContext context, Color primary) {
+  Widget _buildHeader(BuildContext context, Color primary, Color secondary) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Column(
@@ -207,7 +207,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
             gradient: LinearGradient(
               colors: [
                 primary.withValues(alpha: 0.18),
-                const Color(0xFFA78BFA).withValues(alpha: 0.14),
+                secondary.withValues(alpha: 0.14),
               ],
             ),
           ),
@@ -455,7 +455,10 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
                   colors: [primary, secondary],
                 ),
               ),
-              child: const Icon(Icons.water_drop_rounded, color: Colors.white),
+              child: Icon(
+                Icons.water_drop_rounded,
+                color: colorScheme.onPrimary,
+              ),
             ),
 
             const SizedBox(width: 14),
@@ -541,9 +544,9 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
               shape: BoxShape.circle,
               gradient: LinearGradient(colors: [primary, secondary]),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.water_drop_rounded,
-              color: Colors.white,
+              color: colorScheme.onPrimary,
               size: 27,
             ),
           ),
@@ -609,6 +612,8 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     Color primary,
     Color secondary,
   ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return SizedBox(
       width: double.infinity,
       height: 58,
@@ -628,7 +633,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
           onPressed: _finish,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
-            foregroundColor: Colors.white,
+            foregroundColor: colorScheme.onPrimary,
             shadowColor: Colors.transparent,
             elevation: 0,
             shape: RoundedRectangleBorder(

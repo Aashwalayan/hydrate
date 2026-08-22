@@ -362,8 +362,6 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
           _themeOption(
             context,
             theme: HydrateTheme.calm,
-            primary: const Color(0xFF4FC3E8),
-            secondary: const Color(0xFF7FD8C7),
             title: 'Calm Water',
             subtitle: 'Soft cyan & seafoam',
           ),
@@ -371,8 +369,6 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
           _themeOption(
             context,
             theme: HydrateTheme.ocean,
-            primary: const Color(0xFF5FB8E8),
-            secondary: const Color(0xFF69D6D0),
             title: 'Ocean',
             subtitle: 'Cool blue & aqua',
           ),
@@ -380,8 +376,6 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
           _themeOption(
             context,
             theme: HydrateTheme.mist,
-            primary: const Color(0xFF8CB8F2),
-            secondary: const Color(0xFFA78BFA),
             title: 'Mist',
             subtitle: 'Blue & muted lavender',
           ),
@@ -389,8 +383,6 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
           _themeOption(
             context,
             theme: HydrateTheme.mint,
-            primary: const Color(0xFF4DBD9A),
-            secondary: const Color(0xFF82D9B8),
             title: 'Mint',
             subtitle: 'Fresh green & teal',
           ),
@@ -398,8 +390,6 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
           _themeOption(
             context,
             theme: HydrateTheme.lavender,
-            primary: const Color(0xFF9B7FEA),
-            secondary: const Color(0xFFD18BDA),
             title: 'Lavender',
             subtitle: 'Soft purple & pink',
           ),
@@ -407,8 +397,6 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
           _themeOption(
             context,
             theme: HydrateTheme.sunset,
-            primary: const Color(0xFFFF8A65),
-            secondary: const Color(0xFFFFB74D),
             title: 'Sunset',
             subtitle: 'Warm orange & coral',
           ),
@@ -416,8 +404,6 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
           _themeOption(
             context,
             theme: HydrateTheme.berry,
-            primary: const Color(0xFFE56B9F),
-            secondary: const Color(0xFFA875D6),
             title: 'Berry',
             subtitle: 'Pink & vibrant purple',
           ),
@@ -425,8 +411,6 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
           _themeOption(
             context,
             theme: HydrateTheme.midnight,
-            primary: const Color(0xFF536DFE),
-            secondary: const Color(0xFF26C6DA),
             title: 'Midnight',
             subtitle: 'Deep indigo & cyan',
           ),
@@ -438,13 +422,17 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
   Widget _themeOption(
     BuildContext context, {
     required HydrateTheme theme,
-    required Color primary,
-    required Color secondary,
     required String title,
     required String subtitle,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
     final selected = _theme == theme;
+
+    final themeData = HydrateThemes.get(theme);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final primary = isDark ? themeData.darkPrimary : themeData.primary;
+    final secondary = isDark ? themeData.darkSecondary : themeData.secondary;
 
     return Material(
       color: Colors.transparent,
