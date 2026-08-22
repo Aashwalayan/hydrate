@@ -166,7 +166,7 @@ class AboutScreen extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          'Version 1.0.0',
+          'Version 1.0.1',
           style: theme.textTheme.bodySmall?.copyWith(
             color: colorScheme.onSurface.withValues(alpha: 0.45),
           ),
@@ -459,7 +459,7 @@ class AboutScreen extends StatelessWidget {
     return Column(
       children: [
         Text(
-          'i hope you like this app vats.',
+          'Hope you like this lil app i made in a week',
           textAlign: TextAlign.center,
           style: theme.textTheme.bodySmall?.copyWith(
             color: colorScheme.onSurface.withValues(alpha: 0.5),
