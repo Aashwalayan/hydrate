@@ -25,8 +25,6 @@ class PersonalizationScreen extends StatefulWidget {
 class _PersonalizationScreenState extends State<PersonalizationScreen> {
   ThemeController get _themeController => ThemeControllerProvider.of(context);
 
-  HydrateThemeData get _selectedThemeData => HydrateThemes.get(_theme);
-
   late ThemeMode _themeMode;
   late HydrateTheme _theme;
 
@@ -69,11 +67,8 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final themeData = _selectedThemeData;
-
-    final primary = isDark ? themeData.darkPrimary : themeData.primary;
-
-    final secondary = isDark ? themeData.darkSecondary : themeData.secondary;
+    final primary = theme.colorScheme.primary;
+    final secondary = theme.colorScheme.secondary;
 
     final surface = theme.colorScheme.surface;
 
@@ -333,7 +328,6 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
             _themeMode = mode;
           });
 
-          _themeController.setThemeMode(mode);
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
@@ -452,8 +446,6 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
         setState(() {
           _theme = theme;
         });
-
-        _themeController.setHydrateTheme(theme);
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
