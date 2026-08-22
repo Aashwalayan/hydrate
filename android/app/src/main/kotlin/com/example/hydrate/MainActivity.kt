@@ -15,6 +15,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private var alarmLaunchData: Map<String, Any?>? = null
+    private var isAlarmLaunch = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,6 +55,17 @@ class MainActivity : FlutterActivity() {
                     alarmLaunchData = null
                 }
 
+                "isAlarmLaunch" -> {
+                    result.success(isAlarmLaunch)
+                }
+
+                "finishAlarmActivity" -> {
+                    if (isAlarmLaunch) {
+                        finish()
+                    }
+                    result.success(null)
+                }
+
                 else -> result.notImplemented()
             }
         }
@@ -62,7 +74,9 @@ class MainActivity : FlutterActivity() {
     private fun handleAlarmIntent(intent: Intent?) {
         if (intent?.action != "com.gdelataillade.alarm.action.RING") {
             return
-        }
+        }   
+
+        isAlarmLaunch = true
 
         val alarmId = intent.getIntExtra("alarmId", -1)
 

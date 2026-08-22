@@ -122,7 +122,10 @@ class AlarmService {
         vibrate: true,
         androidFullScreenIntent: true,
         warningNotificationOnKill: false,
-        volumeSettings: const VolumeSettings.fixed(volume: 1.0),
+        volumeSettings: const VolumeSettings.fixed(
+          volume: null,
+          volumeEnforced: false,
+        ),
         notificationSettings: NotificationSettings(
           title: 'Time to hydrate',
           body: label,
@@ -199,7 +202,10 @@ class AlarmService {
       vibrate: true,
       androidFullScreenIntent: true,
       warningNotificationOnKill: false,
-      volumeSettings: const VolumeSettings.fixed(volume: 1.0),
+      volumeSettings: const VolumeSettings.fixed(
+        volume: null,
+        volumeEnforced: false,
+      ),
       notificationSettings: NotificationSettings(
         title: 'Time to hydrate',
         body: alarm.label,

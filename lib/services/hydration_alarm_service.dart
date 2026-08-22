@@ -13,7 +13,7 @@ class HydrationAlarmDto {
     this.startTime,
     this.endTime,
     this.intervalMinutes,
-    this.tone = 'defaultTone',
+    this.tone = 'sound',
   });
 
   final String id;
@@ -38,7 +38,7 @@ class HydrationAlarmDto {
       startTime: json['startTime'] as String?,
       endTime: json['endTime'] as String?,
       intervalMinutes: (json['intervalMinutes'] as num?)?.toInt(),
-      tone: json['tone'] as String? ?? 'defaultTone',
+      tone: json['tone'] as String? ?? 'sound',
     );
   }
 
@@ -123,7 +123,7 @@ class HydrationAlarmService {
     String? startTime,
     String? endTime,
     int? intervalMinutes,
-    String tone = 'defaultTone',
+    String tone = 'sound',
   }) async {
     try {
       final headers = await _authHeaders();
@@ -178,7 +178,7 @@ class HydrationAlarmService {
     String? startTime,
     String? endTime,
     int? intervalMinutes,
-    String tone = 'defaultTone',
+    String tone = 'sound',
   }) async {
     try {
       final headers = await _authHeaders();

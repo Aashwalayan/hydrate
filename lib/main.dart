@@ -36,6 +36,16 @@ Future<void> checkAndroidScheduleExactAlarmPermission() async {
   }
 }
 
+Future<Map<String, dynamic>?> getInitialAlarmData() async {
+  final result = await _alarmLaunchChannel.invokeMethod<dynamic>(
+    'getInitialAlarm',
+  );
+
+  if (result == null) return null;
+
+  return Map<String, dynamic>.from(result as Map);
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -43,11 +53,15 @@ Future<void> main() async {
 
   await checkAndroidScheduleExactAlarmPermission();
 
-  runApp(const HydrateApp());
+  final initialAlarm = await getInitialAlarmData();
+
+  runApp(HydrateApp(initialAlarm: initialAlarm));
 }
 
 class HydrateApp extends StatefulWidget {
-  const HydrateApp({super.key});
+  const HydrateApp({super.key, this.initialAlarm});
+
+  final Map<String, dynamic>? initialAlarm;
 
   @override
   State<HydrateApp> createState() => _HydrateAppState();
@@ -63,55 +77,10 @@ class _HydrateAppState extends State<HydrateApp> {
     _initializeNotifications();
   }
 
-  Future<void> _handleInitialAlarmLaunch() async {
-    final result = await _alarmLaunchChannel.invokeMethod<dynamic>(
-      'getInitialAlarm',
-    );
-
-    if (result == null) return;
-
-    final data = Map<String, dynamic>.from(result as Map);
-
-    final alarmId = data['alarmId'] as int?;
-    final label = data['alarmBody'] as String?;
-
-    if (alarmId == null || label == null) return;
-
-    final alarm = ActiveAlarm(
-      id: alarmId,
-      label: label,
-      scheduledTime: DateTime.now(),
-    );
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showAlarmRingingScreen(alarm);
-    });
-  }
-
-  // Future<void> _testAlarmService() async {
-  //   final time = DateTime.now().add(const Duration(minutes: 1));
-
-  //   await AlarmService.instance.scheduleAlarm(
-  //     id: 'vivo_test',
-  //     label: 'Vivo alarm test',
-  //     reminderTimes: [time],
-  //   );
-
-  //   final alarms = await Alarm.getAlarms();
-
-  //   for (final alarm in alarms) {
-  //     debugPrint('SCHEDULED ALARM: id=${alarm.id}, dateTime=${alarm.dateTime}');
-  //   }
-
-  //   debugPrint('ALARM SERVICE TEST SCHEDULED: $time');
-  // }
-
   Future<void> _initializeNotifications() async {
     await NotificationService.instance.initialize();
     AlarmService.instance.onAlarmTriggered = _showAlarmRingingScreen;
     AlarmService.instance.initialize();
-    //await _handleInitialAlarmLaunch();
-    //await _testAlarmService();
   }
 
   void _showAlarmRingingScreen(ActiveAlarm alarm) {
@@ -185,7 +154,15 @@ class _HydrateAppState extends State<HydrateApp> {
             themeMode: controller.themeMode,
             theme: AppTheme.lightTheme(controller.hydrateTheme),
             darkTheme: AppTheme.darkTheme(controller.hydrateTheme),
-            home: const SplashScreen(),
+            home: widget.initialAlarm != null
+                ? AlarmRingingScreen(
+                    alarmId: widget.initialAlarm!['alarmId'] as int,
+                    label:
+                        widget.initialAlarm!['alarmBody'] as String? ??
+                        'Time to hydrate',
+                    scheduledTime: DateTime.now(),
+                  )
+                : const SplashScreen(),
           ),
         );
       },

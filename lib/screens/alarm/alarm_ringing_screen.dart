@@ -5,19 +5,10 @@ import 'package:flutter/services.dart';
 
 import '../../services/alarm_service.dart';
 
-/// Shown when a hydration alarm fires. Reachable three ways, all converging
-/// on the same widget:
-///
-/// 1. Foreground: NotificationService -> AlarmService -> navigatorKey push.
-/// 2. Backgrounded (isolate alive): same path as above.
-/// 3. Terminated: Android launches MainActivity fresh via the full-screen
-///    intent; `main.dart` checks `NotificationService.getLaunchDetails()`
-///    once at startup and pushes this screen after the first frame.
-///
-/// This widget intentionally knows nothing about scheduling, cancellation,
-/// or notification IDs beyond the single [alarmId] it was given — all of
-/// that lives in [AlarmService]. It only displays the alarm and reports the
-/// user's choice (dismiss/snooze) back to the service.
+const MethodChannel _alarmLaunchChannel = MethodChannel(
+  'com.hydrate/alarm_launch',
+);
+
 class AlarmRingingScreen extends StatefulWidget {
   const AlarmRingingScreen({
     super.key,
@@ -77,6 +68,18 @@ class _AlarmRingingScreenState extends State<AlarmRingingScreen>
     _hapticTimer = null;
   }
 
+  Future<void> _finishAlarmActivity() async {
+    final isAlarmLaunch = await _alarmLaunchChannel.invokeMethod<bool>(
+      'isAlarmLaunch',
+    );
+
+    if (isAlarmLaunch == true) {
+      await _alarmLaunchChannel.invokeMethod('finishAlarmActivity');
+    } else if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
   Future<void> _handleDismiss() async {
     if (_isResolving) return;
     setState(() => _isResolving = true);
@@ -85,7 +88,7 @@ class _AlarmRingingScreenState extends State<AlarmRingingScreen>
     await AlarmService.instance.dismiss(widget.alarmId);
 
     if (!mounted) return;
-    Navigator.of(context).pop();
+    await _finishAlarmActivity();
   }
 
   Future<void> _handleSnooze() async {
@@ -101,7 +104,7 @@ class _AlarmRingingScreenState extends State<AlarmRingingScreen>
     await AlarmService.instance.snooze(alarm);
 
     if (!mounted) return;
-    Navigator.of(context).pop();
+    await _finishAlarmActivity();
   }
 
   @override
@@ -142,7 +145,9 @@ class _AlarmRingingScreenState extends State<AlarmRingingScreen>
                 AnimatedBuilder(
                   animation: _bobController,
                   builder: (context, child) {
-                    final offset = Curves.easeInOut.transform(_bobController.value);
+                    final offset = Curves.easeInOut.transform(
+                      _bobController.value,
+                    );
                     return Transform.translate(
                       offset: Offset(0, -6 * offset),
                       child: child,
@@ -188,7 +193,10 @@ class _AlarmRingingScreenState extends State<AlarmRingingScreen>
                 ),
                 const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: colorScheme.primaryContainer.withValues(alpha: 0.35),
                     borderRadius: BorderRadius.circular(14),
