@@ -148,9 +148,9 @@ hydrate/
 
 ## Version
 
-**v1.0.0**
+**v1.0.1**
 
-Hydrate v1.0.0 is the first stable release of the application.
+Hydrate v1.0.1 is the first stable release of the application.
 
 ## Roadmap
 
@@ -174,11 +174,5 @@ If you find an issue, please open a GitHub issue with:
 2. Steps to reproduce it
 3. Device and Android/iOS version
 4. Relevant screenshots or logs
-
-## License
-
-This project is currently distributed without a specified open-source license.
-
----
 
 Built with Flutter by **Aashwalayan**.
